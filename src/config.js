@@ -9,7 +9,7 @@
     return 'ws://localhost:3001';
   }
 
-  return 'wss://YOUR_SERVER_HOST';
+  return 'wss://pollorp.onrender.com';
 })();
 
 export function makeRandomName() {
