@@ -1,0 +1,37 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PolloRP – Simple 3D Roleplay</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="hud">
+    <div class="brand">PolloRP</div>
+    <div class="hint">WASD move · Drag mouse: camera · E interact · Esc close</div>
+    <div id="nearPrompt" class="near">Press E to interact</div>
+    <div id="emote" class="emote"></div>
+  </div>
+
+  <div id="start" class="modal show">
+    <div class="card">
+      <h1>Welcome to PolloRP</h1>
+      <p>A small village, a big story. Choose your name and begin your journey.</p>
+      <label for="playerName">Your name</label>
+      <input id="playerName" type="text" maxlength="18" placeholder="e.g. Mira" />
+      <button id="startBtn">Start game</button>
+    </div>
+  </div>
+
+  <div id="dialog" class="modal">
+    <div class="card dialog">
+      <h2 id="npcName">NPC</h2>
+      <p id="dialogText"></p>
+      <div id="dialogOptions" class="options"></div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

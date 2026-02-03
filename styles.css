@@ -1,0 +1,176 @@
+﻿@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Petrona:wght@500;700&display=swap');
+
+:root {
+  color-scheme: light;
+  --bg: #0e1016;
+  --panel: rgba(16, 18, 24, 0.86);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --text: #f6f1e7;
+  --accent: #e2b35d;
+  --accent-soft: rgba(226, 179, 93, 0.2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #0f1118;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--text);
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+  cursor: grab;
+}
+
+#hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 20px 24px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brand {
+  font-family: 'Petrona', serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 18px;
+  color: var(--accent);
+}
+
+.hint {
+  font-size: 14px;
+  color: rgba(246, 241, 231, 0.7);
+}
+
+.near {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(226, 179, 93, 0.4);
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.near.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.emote {
+  font-size: 14px;
+  color: rgba(246, 241, 231, 0.8);
+  min-height: 18px;
+}
+
+.modal {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at top, rgba(15, 17, 24, 0.65), rgba(5, 6, 8, 0.9));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.card {
+  width: min(92vw, 420px);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.4);
+}
+
+.card h1,
+.card h2 {
+  font-family: 'Petrona', serif;
+  margin: 0 0 12px;
+}
+
+.card p {
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  color: rgba(246, 241, 231, 0.7);
+}
+
+input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #1d1204;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(226, 179, 93, 0.3);
+}
+
+.dialog .options {
+  display: grid;
+  gap: 10px;
+}
+
+.dialog button {
+  width: 100%;
+  background: rgba(226, 179, 93, 0.15);
+  color: var(--text);
+  border: 1px solid rgba(226, 179, 93, 0.4);
+}
+
+.dialog button:hover {
+  background: rgba(226, 179, 93, 0.28);
+  box-shadow: none;
+}
+
+@media (max-width: 600px) {
+  #hud {
+    padding: 16px;
+  }
+
+  .card {
+    padding: 20px;
+  }
+}
