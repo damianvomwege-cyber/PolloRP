@@ -3,6 +3,7 @@
   const startBtn = document.getElementById('startBtn');
   const nameInput = document.getElementById('playerName');
   const adminPassInput = document.getElementById('adminPass');
+  const serverUrlInput = document.getElementById('serverUrl');
   const logoutBtn = document.getElementById('logoutBtn');
   const nearPrompt = document.getElementById('nearPrompt');
   const dialogModal = document.getElementById('dialog');
@@ -10,6 +11,9 @@
   const dialogOptions = document.getElementById('dialogOptions');
   const npcName = document.getElementById('npcName');
   const emote = document.getElementById('emote');
+  const chat = document.getElementById('chat');
+  const chatMessages = document.getElementById('chatMessages');
+  const chatInput = document.getElementById('chatInput');
 
   let playerName = 'Traveler';
   let gameStarted = false;
@@ -17,12 +21,15 @@
   let activeStep = null;
   let onStart = null;
   let onLogout = null;
+  let onChatSend = null;
   let adminUnlocked = false;
-  let pendingStart = false;
+  let pendingPayload = null;
+  let isTyping = false;
   const nameRequiredText = 'Enter a name to play.';
   const ADMIN_NAME = 'RpAdmin';
   const ADMIN_PASS = 'Admin@2024!';
   const SESSION_KEY = 'polorp.session';
+  const SERVER_KEY = 'polorp.server';
 
   const dialogs = {
     start: {
@@ -138,6 +145,10 @@
     return adminUnlocked;
   }
 
+  function isChatTyping() {
+    return isTyping;
+  }
+
   function getActiveStep() {
     return activeStep;
   }
@@ -148,14 +159,19 @@
 
   function onStartGame(callback) {
     onStart = callback;
-    if (pendingStart) {
-      pendingStart = false;
-      onStart(playerName);
+    if (pendingPayload) {
+      const payload = pendingPayload;
+      pendingPayload = null;
+      onStart(payload);
     }
   }
 
   function onLogoutGame(callback) {
     onLogout = callback;
+  }
+
+  function onChatSendMessage(callback) {
+    onChatSend = callback;
   }
 
   function updateStartState() {
@@ -168,6 +184,80 @@
     }
   }
 
+  function setChatEnabled(enabled) {
+    if (enabled) {
+      chat.classList.remove('hidden');
+    } else {
+      chat.classList.add('hidden');
+    }
+  }
+
+  function addChatMessage({ name, text, system = false }) {
+    const line = document.createElement('div');
+    line.classList.add('chat-line');
+    if (system) {
+      line.classList.add('system');
+      line.textContent = text;
+    } else {
+      const nameSpan = document.createElement('span');
+      nameSpan.classList.add('name');
+      nameSpan.textContent = `${name}:`;
+      const textSpan = document.createElement('span');
+      textSpan.textContent = text;
+      line.appendChild(nameSpan);
+      line.appendChild(textSpan);
+    }
+    chatMessages.appendChild(line);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function clearChat() {
+    chatMessages.innerHTML = '';
+  }
+
+  function resolveServerUrl() {
+    let url = serverUrlInput.value.trim();
+    if (!url) {
+      try {
+        url = localStorage.getItem(SERVER_KEY) || '';
+      } catch (error) {
+        url = '';
+      }
+    }
+    if (!url && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      url = 'ws://localhost:3001';
+    }
+    if (url) {
+      serverUrlInput.value = url;
+      try {
+        localStorage.setItem(SERVER_KEY, url);
+      } catch (error) {
+        // Ignore storage errors.
+      }
+    }
+    return url;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const queryServer = params.get('ws');
+  if (queryServer) {
+    serverUrlInput.value = queryServer;
+    try {
+      localStorage.setItem(SERVER_KEY, queryServer);
+    } catch (error) {
+      // Ignore storage errors.
+    }
+  } else {
+    try {
+      const storedServer = localStorage.getItem(SERVER_KEY);
+      if (storedServer) {
+        serverUrlInput.value = storedServer;
+      }
+    } catch (error) {
+      // Ignore storage errors.
+    }
+  }
+
   startBtn.addEventListener('click', () => {
     const rawName = nameInput.value.trim();
     if (rawName.length === 0) {
@@ -176,21 +266,26 @@
     }
     playerName = rawName;
     adminUnlocked = playerName === ADMIN_NAME && adminPassInput.value === ADMIN_PASS;
+    const serverUrl = resolveServerUrl();
     gameStarted = true;
     startModal.classList.remove('show');
     nameInput.blur();
     adminPassInput.blur();
     logoutBtn.classList.remove('hidden');
+    setChatEnabled(true);
     try {
       localStorage.setItem(
         SESSION_KEY,
-        JSON.stringify({ name: playerName, adminUnlocked })
+        JSON.stringify({ name: playerName, adminUnlocked, serverUrl })
       );
     } catch (error) {
       // Ignore storage errors.
     }
+    const payload = { name: playerName, serverUrl, adminUnlocked };
     if (onStart) {
-      onStart(playerName);
+      onStart(payload);
+    } else {
+      pendingPayload = payload;
     }
   });
 
@@ -201,6 +296,12 @@
   });
 
   adminPassInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      startBtn.click();
+    }
+  });
+
+  serverUrlInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       startBtn.click();
     }
@@ -217,6 +318,9 @@
     adminPassInput.value = '';
     updateStartState();
     logoutBtn.classList.add('hidden');
+    setChatEnabled(false);
+    clearChat();
+    chatInput.value = '';
     try {
       localStorage.removeItem(SESSION_KEY);
     } catch (error) {
@@ -230,6 +334,36 @@
   nameInput.addEventListener('input', updateStartState);
   updateStartState();
   logoutBtn.classList.add('hidden');
+  setChatEnabled(false);
+
+  chatInput.addEventListener('focus', () => {
+    isTyping = true;
+  });
+
+  chatInput.addEventListener('blur', () => {
+    isTyping = false;
+  });
+
+  chatInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      const text = chatInput.value.trim();
+      if (text && onChatSend) {
+        onChatSend(text);
+      }
+      chatInput.value = '';
+      chatInput.blur();
+    }
+    if (event.key === 'Escape') {
+      chatInput.blur();
+    }
+  });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && gameStarted && !dialogOpen && !isTyping) {
+      chatInput.focus();
+      event.preventDefault();
+    }
+  });
 
   try {
     const stored = localStorage.getItem(SESSION_KEY);
@@ -238,13 +372,22 @@
       if (parsed && typeof parsed.name === 'string' && parsed.name.trim().length > 0) {
         playerName = parsed.name.trim();
         adminUnlocked = Boolean(parsed.adminUnlocked);
+        if (parsed.serverUrl) {
+          serverUrlInput.value = parsed.serverUrl;
+        }
         gameStarted = true;
         startModal.classList.remove('show');
         logoutBtn.classList.remove('hidden');
+        setChatEnabled(true);
+        const payload = {
+          name: playerName,
+          serverUrl: parsed.serverUrl || resolveServerUrl(),
+          adminUnlocked
+        };
         if (onStart) {
-          onStart(playerName);
+          onStart(payload);
         } else {
-          pendingStart = true;
+          pendingPayload = payload;
         }
       }
     }
@@ -261,9 +404,14 @@
     isDialogOpen,
     isGameStarted,
     isFlyUnlocked,
+    isChatTyping,
     getActiveStep,
     getPlayerName,
     onStartGame,
-    onLogoutGame
+    onLogoutGame,
+    onChatSendMessage,
+    addChatMessage,
+    clearChat,
+    setChatEnabled
   };
 }

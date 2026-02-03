@@ -5,6 +5,7 @@ import { createPlayer, updatePlayer } from './player.js';
 import { createNpc, isNearNpc } from './npc.js';
 import { setupUI } from './ui.js';
 import { createInput } from './input.js';
+import { createMultiplayer } from './multiplayer.js';
 
 const { renderer, scene, camera, maxAnisotropy } = initEngine(document.body);
 
@@ -14,11 +15,16 @@ ui.setNpcName('Elda');
 const world = createWorld({ scene, maxAnisotropy });
 const player = createPlayer(scene);
 const npc = createNpc(scene, world.addObstacle);
+const multiplayer = createMultiplayer(scene, {
+  onChat: (message) => ui.addChatMessage(message),
+  onSystem: (text) => ui.addChatMessage({ system: true, text })
+});
 
 const input = createInput(renderer.domElement, {
-  shouldCaptureKey: () => ui.isGameStarted(),
+  shouldCaptureKey: () => ui.isGameStarted() && !ui.isChatTyping(),
   onActionKey: (key) => {
     if (!ui.isGameStarted()) return;
+    if (ui.isChatTyping()) return;
 
     if (key === 'escape' && ui.isDialogOpen()) {
       ui.closeDialog();
@@ -68,11 +74,20 @@ let flyEnabled = false;
 
 world.updateChunks(player.position, true);
 
+ui.onStartGame(({ name, serverUrl }) => {
+  multiplayer.connect({ name, serverUrl });
+});
+
+ui.onChatSendMessage((text) => {
+  multiplayer.sendChat(text);
+});
+
 ui.onLogoutGame(() => {
   flyEnabled = false;
   player.position.set(0, 0, 6);
   player.rotation.set(0, 0, 0);
   world.updateChunks(player.position, true);
+  multiplayer.disconnect();
 });
 
 function updateCamera(yaw, pitch) {
@@ -93,12 +108,15 @@ function animate() {
   const delta = clock.getDelta();
   const { yaw, pitch } = input.getCameraAngles();
 
-  if (ui.isGameStarted() && !ui.isDialogOpen()) {
+  if (ui.isGameStarted() && !ui.isDialogOpen() && !ui.isChatTyping()) {
     updatePlayer(player, delta, input.keys, yaw, world.resolveCollisions, { flyEnabled });
   }
 
   world.updateChunks(player.position);
   updateCamera(yaw, pitch);
+  if (ui.isGameStarted()) {
+    multiplayer.update(delta, player);
+  }
 
   const nearNpc = isNearNpc(player.position, npc.position);
   const nearbyLantern = world.getNearbyLantern(player.position);

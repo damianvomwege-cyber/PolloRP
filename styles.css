@@ -177,6 +177,60 @@ button:disabled {
   display: none;
 }
 
+.chat {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  width: min(360px, 88vw);
+  background: rgba(12, 14, 19, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.chat.hidden {
+  display: none;
+}
+
+.chat-messages {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.chat-line {
+  color: rgba(246, 241, 231, 0.88);
+}
+
+.chat-line .name {
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.chat-line.system {
+  color: rgba(226, 179, 93, 0.9);
+  font-style: italic;
+}
+
+.chat-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 14px;
+}
+
 .dialog .options {
   display: grid;
   gap: 10px;
@@ -201,5 +255,11 @@ button:disabled {
 
   .card {
     padding: 20px;
+  }
+
+  .chat {
+    left: 16px;
+    bottom: 16px;
+    width: min(92vw, 360px);
   }
 }

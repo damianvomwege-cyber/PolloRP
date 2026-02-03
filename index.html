@@ -9,7 +9,7 @@
 <body>
   <div id="hud">
     <div class="brand">PolloRP</div>
-    <div class="hint">WASD move · Right-drag: camera · E interact · G fly (admin) · Esc close</div>
+    <div class="hint">WASD move · Right-drag: camera · Enter chat · E interact · G fly (admin) · Esc close</div>
     <div id="nearPrompt" class="near">Press E to interact</div>
     <div id="emote" class="emote"></div>
     <button id="logoutBtn" class="hud-button" type="button">Log out</button>
@@ -24,6 +24,9 @@
       <label for="adminPass">Admin password (optional)</label>
       <input id="adminPass" type="password" placeholder="Admin password" />
       <p class="subtle">Fly mode requires admin name + password.</p>
+      <label for="serverUrl">Server URL (optional)</label>
+      <input id="serverUrl" type="text" placeholder="ws://localhost:3001" />
+      <p class="subtle">Use wss:// for production servers.</p>
       <button id="startBtn">Play</button>
     </div>
   </div>
@@ -34,6 +37,11 @@
       <p id="dialogText"></p>
       <div id="dialogOptions" class="options"></div>
     </div>
+  </div>
+
+  <div id="chat" class="chat hidden">
+    <div id="chatMessages" class="chat-messages"></div>
+    <input id="chatInput" class="chat-input" type="text" maxlength="160" placeholder="Press Enter to chat..." />
   </div>
 
   <script type="module" src="./src/main.js"></script>
