@@ -161,6 +161,22 @@ button:disabled {
   box-shadow: none;
 }
 
+.hud-button {
+  align-self: flex-start;
+  width: auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  background: rgba(15, 17, 24, 0.7);
+  color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
+}
+
+.hud-button.hidden {
+  display: none;
+}
+
 .dialog .options {
   display: grid;
   gap: 10px;

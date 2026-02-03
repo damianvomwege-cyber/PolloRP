@@ -68,6 +68,13 @@ let flyEnabled = false;
 
 world.updateChunks(player.position, true);
 
+ui.onLogoutGame(() => {
+  flyEnabled = false;
+  player.position.set(0, 0, 6);
+  player.rotation.set(0, 0, 0);
+  world.updateChunks(player.position, true);
+});
+
 function updateCamera(yaw, pitch) {
   const cosPitch = Math.cos(pitch);
   const sinPitch = Math.sin(pitch);

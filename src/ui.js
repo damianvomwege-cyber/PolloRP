@@ -3,6 +3,7 @@
   const startBtn = document.getElementById('startBtn');
   const nameInput = document.getElementById('playerName');
   const adminPassInput = document.getElementById('adminPass');
+  const logoutBtn = document.getElementById('logoutBtn');
   const nearPrompt = document.getElementById('nearPrompt');
   const dialogModal = document.getElementById('dialog');
   const dialogText = document.getElementById('dialogText');
@@ -15,6 +16,7 @@
   let dialogOpen = false;
   let activeStep = null;
   let onStart = null;
+  let onLogout = null;
   let adminUnlocked = false;
   const nameRequiredText = 'Enter a name to play.';
   const ADMIN_NAME = 'RpAdmin';
@@ -146,6 +148,10 @@
     onStart = callback;
   }
 
+  function onLogoutGame(callback) {
+    onLogout = callback;
+  }
+
   function updateStartState() {
     const hasName = nameInput.value.trim().length > 0;
     startBtn.disabled = !hasName;
@@ -168,6 +174,7 @@
     startModal.classList.remove('show');
     nameInput.blur();
     adminPassInput.blur();
+    logoutBtn.classList.remove('hidden');
     if (onStart) {
       onStart(playerName);
     }
@@ -185,8 +192,25 @@
     }
   });
 
+  logoutBtn.addEventListener('click', () => {
+    gameStarted = false;
+    dialogOpen = false;
+    activeStep = null;
+    adminUnlocked = false;
+    dialogModal.classList.remove('show');
+    startModal.classList.add('show');
+    nameInput.value = '';
+    adminPassInput.value = '';
+    updateStartState();
+    logoutBtn.classList.add('hidden');
+    if (onLogout) {
+      onLogout();
+    }
+  });
+
   nameInput.addEventListener('input', updateStartState);
   updateStartState();
+  logoutBtn.classList.add('hidden');
 
   return {
     openDialog,
@@ -199,6 +223,7 @@
     isFlyUnlocked,
     getActiveStep,
     getPlayerName,
-    onStartGame
+    onStartGame,
+    onLogoutGame
   };
 }
