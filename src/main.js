@@ -2,7 +2,7 @@
 import { initEngine } from './engine.js';
 import { createWorld } from './world.js';
 import { createPlayer, updatePlayer } from './player.js';
-import { createNpc, isNearNpc } from './npc.js';
+import { createNpcs, getNearestNpc } from './npc.js';
 import { setupUI } from './ui.js';
 import { createInput } from './input.js';
 import { createMultiplayer } from './multiplayer.js';
@@ -11,14 +11,14 @@ import { SERVER_URL } from './config.js';
 const { renderer, scene, camera, maxAnisotropy } = initEngine(document.body);
 
 const ui = setupUI();
-ui.setNpcName('Elda');
 
 const world = createWorld({ scene, maxAnisotropy });
 const player = createPlayer(scene);
-const npc = createNpc(scene, world.addObstacle);
+const npcs = createNpcs(scene, world.addObstacle);
 const multiplayer = createMultiplayer(scene, {
   onChat: (message) => ui.addChatMessage(message),
-  onSystem: (text) => ui.addChatMessage({ system: true, text })
+  onSystem: (text) => ui.addChatMessage({ system: true, text }),
+  onPlayers: (count) => ui.setPlayerCount(count)
 });
 
 const input = createInput(renderer.domElement, {
@@ -33,15 +33,57 @@ const input = createInput(renderer.domElement, {
     }
 
     if (key === 'e' && !ui.isDialogOpen()) {
-      if (isNearNpc(player.position, npc.position)) {
-        const step = world.isLanternQuestComplete() ? 'complete' : 'start';
-        ui.openDialog(step);
+      const nearestNpc = getNearestNpc(player.position, npcs);
+      if (nearestNpc) {
+        if (nearestNpc.name === 'Elda') {
+          if (world.isLanternQuestComplete()) {
+            if (!lanternRewarded) {
+              lanternRewarded = true;
+              coins += 5;
+              ui.updateStats({ coins });
+              ui.showEmote('You received 5 coins.');
+            }
+            ui.openDialog('complete', 'elda', { name: ui.getPlayerName(), coins: 5 });
+          } else {
+            ui.openDialog('start', 'elda', { name: ui.getPlayerName() });
+          }
+          return;
+        }
+        if (nearestNpc.name === 'Jori') {
+          const herbs = world.getHerbProgress();
+          if (world.isHerbQuestComplete()) {
+            if (!herbRewarded) {
+              herbRewarded = true;
+              coins += 8;
+              ui.updateStats({ coins });
+              ui.showEmote('You received 8 coins.');
+            }
+            ui.openDialog('complete', 'jori', { herbs, herbGoal: world.herbGoal, coins: 8 });
+          } else if (herbs > 0) {
+            ui.openDialog('progress', 'jori', { herbs, herbGoal: world.herbGoal });
+          } else {
+            ui.openDialog('start', 'jori', { herbGoal: world.herbGoal });
+          }
+          return;
+        }
+      }
+
+      const herb = world.getNearbyHerb(player.position);
+      if (herb) {
+        const result = world.collectHerb(herb);
+        if (result.changed) {
+          ui.updateStats({ herbs: result.count, herbGoal: result.goal });
+          ui.showEmote(`Herb collected (${result.count}/${result.goal}).`);
+        }
         return;
       }
+
       const lantern = world.getNearbyLantern(player.position);
       if (lantern && !lantern.lit) {
         const result = world.lightLantern(lantern);
         if (result.changed) {
+          lanternProgress = result.lit;
+          ui.updateStats({ lanterns: result.lit, lanternGoal: result.goal });
           if (result.complete) {
             ui.showEmote('All lanterns are burning again.');
           } else {
@@ -72,8 +114,20 @@ const orbitDistance = 7.2;
 const orbitHeight = 1.2;
 const clock = new THREE.Clock();
 let flyEnabled = false;
+let coins = 0;
+let lanternRewarded = false;
+let herbRewarded = false;
+let lanternProgress = 0;
 
 world.updateChunks(player.position, true);
+ui.updateStats({
+  lanterns: lanternProgress,
+  lanternGoal: world.lanternGoal,
+  herbs: world.getHerbProgress(),
+  herbGoal: world.herbGoal,
+  coins
+});
+ui.setPlayerCount(1);
 
 ui.onStartGame(({ name }) => {
   multiplayer.connect({ name, serverUrl: SERVER_URL });
@@ -88,6 +142,18 @@ ui.onLogoutGame(() => {
   player.position.set(0, 0, 6);
   player.rotation.set(0, 0, 0);
   world.updateChunks(player.position, true);
+  coins = 0;
+  lanternRewarded = false;
+  herbRewarded = false;
+  lanternProgress = 0;
+  ui.updateStats({
+    lanterns: lanternProgress,
+    lanternGoal: world.lanternGoal,
+    herbs: world.getHerbProgress(),
+    herbGoal: world.herbGoal,
+    coins
+  });
+  ui.setPlayerCount(1);
   multiplayer.disconnect();
 });
 
@@ -114,17 +180,28 @@ function animate() {
   }
 
   world.updateChunks(player.position);
+  world.updateAmbient(delta, clock.elapsedTime);
   updateCamera(yaw, pitch);
   if (ui.isGameStarted()) {
     multiplayer.update(delta, player);
   }
 
-  const nearNpc = isNearNpc(player.position, npc.position);
-  const nearbyLantern = world.getNearbyLantern(player.position);
-  ui.updatePrompt({
-    nearNpc,
-    nearLantern: Boolean(nearbyLantern && !nearbyLantern.lit)
-  });
+  if (!ui.isGameStarted() || ui.isDialogOpen()) {
+    ui.setPrompt('');
+  } else {
+    const nearestNpc = getNearestNpc(player.position, npcs);
+    const nearbyHerb = world.getNearbyHerb(player.position);
+    const nearbyLantern = world.getNearbyLantern(player.position);
+    if (nearestNpc) {
+      ui.setPrompt(`Press E to talk to ${nearestNpc.name}`);
+    } else if (nearbyHerb) {
+      ui.setPrompt('Press E to gather herbs');
+    } else if (nearbyLantern && !nearbyLantern.lit) {
+      ui.setPrompt('Press E to light the lantern');
+    } else {
+      ui.setPrompt('');
+    }
+  }
 
   renderer.render(scene, camera);
 }

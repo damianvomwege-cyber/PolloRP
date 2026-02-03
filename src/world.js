@@ -3,6 +3,8 @@
 const CHUNK_SIZE = 40;
 const CHUNK_RADIUS = 2;
 const LANTERN_GOAL = 3;
+const HERB_GOAL = 5;
+const FIREFLY_COUNT = 14;
 
 function makeCanvas(size, drawFn) {
   const canvas = document.createElement('canvas');
@@ -143,12 +145,33 @@ function createMaterials(maps) {
     crate: new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.85, metalness: 0.0 }),
     barrel: new THREE.MeshStandardMaterial({ color: 0x7c4a2a, roughness: 0.8, metalness: 0.0 }),
     rock: new THREE.MeshStandardMaterial({ color: 0x6a6d72, roughness: 0.95, metalness: 0.0 }),
+    bush: new THREE.MeshStandardMaterial({ color: 0x2f6b4a, roughness: 0.9, metalness: 0.0 }),
+    fence: new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.85, metalness: 0.0 }),
+    bench: new THREE.MeshStandardMaterial({ color: 0x6f4b2a, roughness: 0.85, metalness: 0.0 }),
+    wellStone: new THREE.MeshStandardMaterial({ color: 0x7f878c, roughness: 0.95, metalness: 0.0 }),
+    path: new THREE.MeshStandardMaterial({ color: 0x5b584c, roughness: 0.95, metalness: 0.0 }),
     lanternPole: new THREE.MeshStandardMaterial({ color: 0x3f3a34, roughness: 0.85, metalness: 0.1 }),
     lanternGlassBase: new THREE.MeshStandardMaterial({
       color: 0xffd9a1,
       emissive: 0x1a1208,
       emissiveIntensity: 0.15,
       roughness: 0.4,
+      metalness: 0.0
+    }),
+    herbStem: new THREE.MeshStandardMaterial({ color: 0x3b6a44, roughness: 0.8, metalness: 0.0 }),
+    herbLeaf: new THREE.MeshStandardMaterial({ color: 0x4f8f5c, roughness: 0.7, metalness: 0.0 }),
+    fire: new THREE.MeshStandardMaterial({
+      color: 0xffa85d,
+      emissive: 0xff6a2a,
+      emissiveIntensity: 1.1,
+      roughness: 0.4,
+      metalness: 0.0
+    }),
+    firefly: new THREE.MeshStandardMaterial({
+      color: 0xfff2b2,
+      emissive: 0xfff2b2,
+      emissiveIntensity: 1.2,
+      roughness: 0.2,
       metalness: 0.0
     })
   };
@@ -163,6 +186,10 @@ export function createWorld({ scene, maxAnisotropy }) {
   const obstacles = [];
   const lanterns = [];
   let lanternsLit = 0;
+  const herbs = [];
+  let herbsCollected = 0;
+  const fireflies = [];
+  const campfires = [];
   const chunks = new Map();
   const tempVector = new THREE.Vector3();
 
@@ -260,6 +287,141 @@ export function createWorld({ scene, maxAnisotropy }) {
     addObstacle(x, z, 0.7, chunkKey);
   }
 
+  function createBush(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const chunkKey = options.chunkKey ?? null;
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 10), materials.bush);
+    bush.position.set(x - parent.position.x, 0.55, z - parent.position.z);
+    bush.scale.set(1.2, 0.9, 1.1);
+    bush.castShadow = true;
+    bush.receiveShadow = true;
+    parent.add(bush);
+    addObstacle(x, z, 0.6, chunkKey);
+  }
+
+  function createFence(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const group = new THREE.Group();
+    const postA = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1, 0.15), materials.fence);
+    const postB = postA.clone();
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 0.12), materials.fence);
+    postA.position.set(-0.8, 0.5, 0);
+    postB.position.set(0.8, 0.5, 0);
+    rail.position.set(0, 0.7, 0);
+    group.add(postA, postB, rail);
+    group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    group.rotation.y = options.rotation ?? 0;
+    group.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    parent.add(group);
+  }
+
+  function createBench(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const group = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 0.5), materials.bench);
+    const legA = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.12), materials.bench);
+    const legB = legA.clone();
+    seat.position.set(0, 0.45, 0);
+    legA.position.set(-0.6, 0.2, -0.15);
+    legB.position.set(0.6, 0.2, 0.15);
+    group.add(seat, legA, legB);
+    group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    group.rotation.y = options.rotation ?? 0;
+    group.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    parent.add(group);
+  }
+
+  function createWell(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const group = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.05, 0.6, 16), materials.wellStone);
+    ring.position.y = 0.3;
+    ring.castShadow = true;
+    ring.receiveShadow = true;
+    group.add(ring);
+    group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    parent.add(group);
+    addObstacle(x, z, 1.0, options.chunkKey ?? null);
+  }
+
+  function createHerb(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const chunkKey = options.chunkKey ?? null;
+    const group = new THREE.Group();
+    for (let i = 0; i < 3; i += 1) {
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.35, 6), materials.herbStem);
+      stem.position.set((i - 1) * 0.08, 0.18, 0);
+      stem.castShadow = true;
+      stem.receiveShadow = true;
+      group.add(stem);
+    }
+    const leafA = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.3, 6), materials.herbLeaf);
+    leafA.position.set(0.1, 0.3, 0.1);
+    leafA.rotation.z = Math.PI / 6;
+    const leafB = leafA.clone();
+    leafB.position.set(-0.12, 0.28, -0.05);
+    leafB.rotation.z = -Math.PI / 5;
+    group.add(leafA, leafB);
+    group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    parent.add(group);
+    const herb = { group, collected: false, chunkKey };
+    herbs.push(herb);
+    return herb;
+  }
+
+  function createCampfire(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const group = new THREE.Group();
+    for (let i = 0; i < 6; i += 1) {
+      const stone = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), materials.rock);
+      const angle = (i / 6) * Math.PI * 2;
+      stone.position.set(Math.cos(angle) * 0.45, 0.16, Math.sin(angle) * 0.45);
+      stone.castShadow = true;
+      stone.receiveShadow = true;
+      group.add(stone);
+    }
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.6, 8), materials.fire);
+    flame.position.y = 0.45;
+    flame.castShadow = true;
+    group.add(flame);
+
+    const light = new THREE.PointLight(0xffa05f, 1.6, 9, 2);
+    light.position.set(0, 0.9, 0);
+    light.castShadow = true;
+    group.add(light);
+
+    group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    parent.add(group);
+    const campfire = { group, flame, light, flicker: Math.random() * 100 };
+    campfires.push(campfire);
+    addObstacle(x, z, 0.9, options.chunkKey ?? null);
+    return campfire;
+  }
+
+  function createFireflies(centerX, centerZ) {
+    for (let i = 0; i < FIREFLY_COUNT; i += 1) {
+      const bug = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), materials.firefly);
+      bug.position.set(centerX + (Math.random() - 0.5) * 8, 1.8 + Math.random(), centerZ + (Math.random() - 0.5) * 8);
+      scene.add(bug);
+      fireflies.push({
+        mesh: bug,
+        base: bug.position.clone(),
+        speed: 0.6 + Math.random() * 0.6,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+
   function createLantern(x, z, options = {}) {
     const parent = options.parent ?? scene;
     const chunkKey = options.chunkKey ?? null;
@@ -323,10 +485,15 @@ export function createWorld({ scene, maxAnisotropy }) {
       const x = cx * CHUNK_SIZE + margin + rand() * (CHUNK_SIZE - margin * 2);
       const z = cz * CHUNK_SIZE + margin + rand() * (CHUNK_SIZE - margin * 2);
       const pick = rand();
-      if (pick < 0.65) {
+      if (pick < 0.55) {
         createTree(x, z, { parent, chunkKey });
+      } else if (pick < 0.75) {
+        createBush(x, z, { parent, chunkKey });
       } else {
         createRock(x, z, { parent, chunkKey, rng: rand });
+      }
+      if (rand() < 0.35) {
+        createHerb(x + (rand() - 0.5) * 2, z + (rand() - 0.5) * 2, { parent, chunkKey });
       }
     }
   }
@@ -349,12 +516,9 @@ export function createWorld({ scene, maxAnisotropy }) {
     populateChunk(cx, cz, chunkKey, group);
   }
 
-  function removeByChunk(list, chunkKey, onRemove) {
+  function removeByChunk(list, chunkKey) {
     for (let i = list.length - 1; i >= 0; i -= 1) {
       if (list[i].chunkKey === chunkKey) {
-        if (onRemove) {
-          onRemove(list[i]);
-        }
         list.splice(i, 1);
       }
     }
@@ -383,11 +547,8 @@ export function createWorld({ scene, maxAnisotropy }) {
     scene.remove(chunk.group);
     disposeGroup(chunk.group);
     removeByChunk(obstacles, chunkKey);
-    removeByChunk(lanterns, chunkKey, (lantern) => {
-      if (lantern.lit) {
-        lanternsLit = Math.max(0, lanternsLit - 1);
-      }
-    });
+    removeByChunk(lanterns, chunkKey);
+    removeByChunk(herbs, chunkKey);
     chunks.delete(chunkKey);
   }
 
@@ -449,6 +610,70 @@ export function createWorld({ scene, maxAnisotropy }) {
     return lanternsLit >= LANTERN_GOAL;
   }
 
+  function getNearbyHerb(playerPosition) {
+    let nearest = null;
+    let nearestDist = Infinity;
+    herbs.forEach((herb) => {
+      if (herb.collected) return;
+      herb.group.getWorldPosition(tempVector);
+      const dist = playerPosition.distanceTo(tempVector);
+      if (dist < 2.2 && dist < nearestDist) {
+        nearest = herb;
+        nearestDist = dist;
+      }
+    });
+    return nearest;
+  }
+
+  function collectHerb(herb) {
+    if (!herb || herb.collected) return { changed: false };
+    herb.collected = true;
+    herb.group.visible = false;
+    herbsCollected += 1;
+    return {
+      changed: true,
+      count: herbsCollected,
+      goal: HERB_GOAL,
+      complete: herbsCollected >= HERB_GOAL
+    };
+  }
+
+  function getHerbProgress() {
+    return herbsCollected;
+  }
+
+  function isHerbQuestComplete() {
+    return herbsCollected >= HERB_GOAL;
+  }
+
+  function updateAmbient(delta, elapsed) {
+    campfires.forEach((campfire) => {
+      campfire.flicker += delta * 3;
+      const flicker = 0.7 + Math.sin(campfire.flicker * 4) * 0.2 + Math.random() * 0.1;
+      campfire.light.intensity = 1.2 + flicker;
+      campfire.flame.scale.y = 0.9 + Math.sin(campfire.flicker * 5) * 0.15;
+    });
+
+    fireflies.forEach((fly) => {
+      const offset = elapsed * fly.speed + fly.phase;
+      fly.mesh.position.x = fly.base.x + Math.cos(offset) * 0.6;
+      fly.mesh.position.z = fly.base.z + Math.sin(offset * 0.8) * 0.6;
+      fly.mesh.position.y = fly.base.y + Math.sin(offset * 1.3) * 0.4;
+    });
+  }
+
+  const pathA = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 34), materials.path);
+  pathA.rotation.x = -Math.PI / 2;
+  pathA.position.set(0, 0.01, -2);
+  pathA.receiveShadow = true;
+  scene.add(pathA);
+
+  const pathB = new THREE.Mesh(new THREE.PlaneGeometry(18, 4.2), materials.path);
+  pathB.rotation.x = -Math.PI / 2;
+  pathB.position.set(2, 0.01, 2);
+  pathB.receiveShadow = true;
+  scene.add(pathB);
+
   createHouse(-8, -6);
   createHouse(10, -4);
   createHouse(-12, 8);
@@ -465,15 +690,38 @@ export function createWorld({ scene, maxAnisotropy }) {
   createLantern(16, 0);
   createLantern(14, -4);
 
+  createFence(-1, 4.6, { rotation: Math.PI / 2 });
+  createFence(1.6, 4.6, { rotation: Math.PI / 2 });
+  createFence(-5.5, -0.5, { rotation: Math.PI / 3 });
+  createBench(-1.5, 1.6, { rotation: Math.PI / 2 });
+  createBench(3.5, 1.2, { rotation: -Math.PI / 4 });
+  createWell(-3.2, 5.2);
+  createCampfire(2.4, -3.6);
+  createBush(-6.2, 6.5);
+  createBush(6.2, -1.4);
+  createHerb(7.5, -9.5);
+  createHerb(9.2, -10.8);
+  createHerb(11.3, -9.2);
+  createHerb(8.6, -12.2);
+  createHerb(10.1, -12.8);
+
+  createFireflies(1, -4);
+
   return {
     obstacles,
     lanterns,
     lanternGoal: LANTERN_GOAL,
+    herbGoal: HERB_GOAL,
     addObstacle,
     resolveCollisions,
     updateChunks,
+    updateAmbient,
     getNearbyLantern,
     lightLantern,
-    isLanternQuestComplete
+    isLanternQuestComplete,
+    getNearbyHerb,
+    collectHerb,
+    getHerbProgress,
+    isHerbQuestComplete
   };
 }

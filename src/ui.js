@@ -15,11 +15,16 @@ export function setupUI() {
   const chat = document.getElementById('chat');
   const chatMessages = document.getElementById('chatMessages');
   const chatInput = document.getElementById('chatInput');
+  const lanternStat = document.getElementById('lanternStat');
+  const herbStat = document.getElementById('herbStat');
+  const coinStat = document.getElementById('coinStat');
+  const playerCount = document.getElementById('playerCount');
 
   let playerName = 'Traveler';
   let gameStarted = false;
   let dialogOpen = false;
   let activeStep = null;
+  let activeDialogKey = 'elda';
   let onStart = null;
   let onLogout = null;
   let onChatSend = null;
@@ -30,63 +35,110 @@ export function setupUI() {
   const ADMIN_PASS = 'Admin@2024!';
   const SESSION_KEY = 'polorp.session';
 
-  const dialogs = {
-    start: {
-      text: 'Welcome, {name}. I am Elda, chronicler of Kaldbach. What brings you here?',
-      options: [
-        { label: 'Tell me about the village.', next: 'town' },
-        { label: 'I am looking for work.', next: 'work' },
-        { label: 'Just passing through.', next: 'bye' }
-      ]
+  const dialogSets = {
+    elda: {
+      name: 'Elda',
+      steps: {
+        start: {
+          text: 'Welcome, {name}. I am Elda, chronicler of Kaldbach. What brings you here?',
+          options: [
+            { label: 'Tell me about the village.', next: 'town' },
+            { label: 'I am looking for work.', next: 'work' },
+            { label: 'Just passing through.', next: 'bye' }
+          ]
+        },
+        town: {
+          text: 'Our people live from the wind trade and the herbs of the moor. Every traveler brings new stories.',
+          options: [
+            { label: 'I might have one.', next: 'work' },
+            { label: 'I will look around.', next: null }
+          ]
+        },
+        work: {
+          text: 'If you want to help: Three lanterns on the east road have gone dark. Bring back the light, and your name will be remembered.',
+          options: [
+            { label: 'I will take care of it.', next: 'thanks' },
+            { label: 'Maybe later.', next: null }
+          ]
+        },
+        complete: {
+          text: 'You brought back the light, {name}. The village honors you. Take these {coins} coins.',
+          options: [
+            { label: 'Glad to help.', next: null }
+          ]
+        },
+        thanks: {
+          text: 'Then walk with steady steps. The village trusts you.',
+          options: [
+            { label: 'Goodbye.', next: null }
+          ]
+        },
+        bye: {
+          text: 'May the road carry you kindly. If you return, there is a place by the fire.',
+          options: [
+            { label: 'Goodbye.', next: null }
+          ]
+        }
+      }
     },
-    town: {
-      text: 'Our people live from the wind trade and the herbs of the moor. Every traveler brings new stories.',
-      options: [
-        { label: 'I might have one.', next: 'work' },
-        { label: 'I will look around.', next: null }
-      ]
-    },
-    work: {
-      text: 'If you want to help: Three lanterns on the east road have gone dark. Bring back the light, and your name will be remembered.',
-      options: [
-        { label: 'I will take care of it.', next: 'thanks' },
-        { label: 'Maybe later.', next: null }
-      ]
-    },
-    complete: {
-      text: 'You brought back the light, {name}. People are already talking about it.',
-      options: [
-        { label: 'Glad to help.', next: null }
-      ]
-    },
-    thanks: {
-      text: 'Then walk with steady steps. The village trusts you.',
-      options: [
-        { label: 'Goodbye.', next: null }
-      ]
-    },
-    bye: {
-      text: 'May the road carry you kindly. If you return, there is a place by the fire.',
-      options: [
-        { label: 'Goodbye.', next: null }
-      ]
+    jori: {
+      name: 'Jori',
+      steps: {
+        start: {
+          text: 'Ah, a fresh face! I am short on marsh herbs. Bring me {herbGoal} bundles and I will pay well.',
+          options: [
+            { label: 'I will gather them.', next: 'thanks' },
+            { label: 'Maybe later.', next: null }
+          ]
+        },
+        progress: {
+          text: 'You have {herbs}/{herbGoal} herbs. The stew needs more.',
+          options: [
+            { label: 'I will keep looking.', next: null }
+          ]
+        },
+        complete: {
+          text: 'You did it! The village kitchen is saved. Here are {coins} coins.',
+          options: [
+            { label: 'Happy to help.', next: null }
+          ]
+        },
+        thanks: {
+          text: 'The marsh glows at dusk. You will find the herbs near the reeds.',
+          options: [
+            { label: 'On my way.', next: null }
+          ]
+        }
+      }
     }
   };
 
-  function openDialog(step) {
-    const entry = dialogs[step];
+  function formatText(text, context) {
+    if (!context) return text;
+    return text.replace(/\{(\w+)\}/g, (match, key) => {
+      if (context[key] === undefined) return match;
+      return String(context[key]);
+    });
+  }
+
+  function openDialog(step, dialogKey = activeDialogKey, context = {}) {
+    const set = dialogSets[dialogKey];
+    if (!set) return;
+    const entry = set.steps[step];
     if (!entry) return;
     dialogOpen = true;
     activeStep = step;
+    activeDialogKey = dialogKey;
+    npcName.textContent = set.name;
     dialogModal.classList.add('show');
-    dialogText.textContent = entry.text.replace('{name}', playerName);
+    dialogText.textContent = formatText(entry.text, context);
     dialogOptions.innerHTML = '';
     entry.options.forEach((option) => {
       const btn = document.createElement('button');
-      btn.textContent = option.label;
+      btn.textContent = formatText(option.label, context);
       btn.addEventListener('click', () => {
         if (option.next) {
-          openDialog(option.next);
+          openDialog(option.next, dialogKey, context);
         } else {
           closeDialog();
         }
@@ -110,26 +162,29 @@ export function setupUI() {
     }, 1600);
   }
 
-  function updatePrompt({ nearNpc, nearLantern }) {
-    if (!gameStarted || dialogOpen) {
+  function setPrompt(text) {
+    if (text) {
+      nearPrompt.textContent = text;
+      nearPrompt.classList.add('show');
+    } else {
       nearPrompt.classList.remove('show');
-      return;
     }
-    if (nearNpc) {
-      nearPrompt.textContent = 'Press E to talk to Elda';
-      nearPrompt.classList.add('show');
-      return;
-    }
-    if (nearLantern) {
-      nearPrompt.textContent = 'Press E to light the lantern';
-      nearPrompt.classList.add('show');
-      return;
-    }
-    nearPrompt.classList.remove('show');
   }
 
-  function setNpcName(name) {
-    npcName.textContent = name;
+  function updateStats({ lanterns, lanternGoal, herbs, herbGoal, coins }) {
+    if (lanterns !== undefined && lanternGoal !== undefined) {
+      lanternStat.textContent = `${lanterns}/${lanternGoal}`;
+    }
+    if (herbs !== undefined && herbGoal !== undefined) {
+      herbStat.textContent = `${herbs}/${herbGoal}`;
+    }
+    if (coins !== undefined) {
+      coinStat.textContent = `${coins}`;
+    }
+  }
+
+  function setPlayerCount(count) {
+    playerCount.textContent = `${count}`;
   }
 
   function isDialogOpen() {
@@ -329,8 +384,9 @@ export function setupUI() {
     openDialog,
     closeDialog,
     showEmote,
-    updatePrompt,
-    setNpcName,
+    setPrompt,
+    updateStats,
+    setPlayerCount,
     isDialogOpen,
     isGameStarted,
     isFlyUnlocked,

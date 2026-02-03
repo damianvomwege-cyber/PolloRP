@@ -177,6 +177,29 @@ button:disabled {
   display: none;
 }
 
+.panel {
+  align-self: flex-start;
+  background: rgba(12, 14, 19, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.panel-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(226, 179, 93, 0.9);
+}
+
+.panel-line {
+  font-size: 13px;
+  color: rgba(246, 241, 231, 0.85);
+}
+
 .chat {
   position: absolute;
   left: 24px;
@@ -261,5 +284,9 @@ button:disabled {
     left: 16px;
     bottom: 16px;
     width: min(92vw, 360px);
+  }
+
+  .panel {
+    width: min(240px, 90vw);
   }
 }
