@@ -52,6 +52,10 @@ export function createMultiplayer(scene, options = {}) {
   let socket = null;
   let myId = null;
   let lastSend = 0;
+  let shouldReconnect = false;
+  let reconnectAttempts = 0;
+  let reconnectTimer = null;
+  let lastConnect = null;
   const lastSentPos = new THREE.Vector3();
   let lastSentRot = 0;
 
@@ -190,17 +194,36 @@ export function createMultiplayer(scene, options = {}) {
     onPlayers(remotes.size + 1);
   }
 
-  function connect({ name, serverUrl }) {
+  function scheduleReconnect() {
+    if (!shouldReconnect || !lastConnect) return;
+    if (reconnectTimer) return;
+    const delay = Math.min(8000, 1000 * Math.pow(2, reconnectAttempts));
+    onSystem(`Reconnecting in ${Math.round(delay / 1000)}s...`);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      reconnectAttempts += 1;
+      connect(lastConnect, { isReconnect: true });
+    }, delay);
+  }
+
+  function connect({ name, serverUrl }, options = {}) {
     disconnect();
     if (!serverUrl || serverUrl.includes('YOUR_SERVER_HOST')) {
       onSystem('Server not configured. Please set SERVER_URL in src/config.js.');
       return;
     }
 
+    shouldReconnect = true;
+    lastConnect = { name, serverUrl };
+    if (!options.isReconnect) {
+      reconnectAttempts = 0;
+    }
+
     try {
       socket = new WebSocket(serverUrl);
     } catch (error) {
       onSystem('Invalid server URL.');
+      shouldReconnect = false;
       return;
     }
 
@@ -252,14 +275,26 @@ export function createMultiplayer(scene, options = {}) {
       myId = null;
       clearRemotes();
       onPlayers(1);
+      if (shouldReconnect) {
+        scheduleReconnect();
+      }
     });
 
     socket.addEventListener('error', () => {
       onSystem('Connection error.');
+      if (shouldReconnect) {
+        scheduleReconnect();
+      }
     });
   }
 
   function disconnect() {
+    shouldReconnect = false;
+    lastConnect = null;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     if (socket) {
       socket.close();
       socket = null;
