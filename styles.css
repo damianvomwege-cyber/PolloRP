@@ -112,6 +112,12 @@ canvas {
   line-height: 1.5;
 }
 
+.subtle {
+  margin-top: -4px;
+  font-size: 12px;
+  color: rgba(246, 241, 231, 0.6);
+}
+
 label {
   display: block;
   margin-bottom: 6px;
@@ -146,6 +152,13 @@ button {
 button:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(226, 179, 93, 0.3);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .dialog .options {

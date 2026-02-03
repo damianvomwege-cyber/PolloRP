@@ -9,7 +9,7 @@
 <body>
   <div id="hud">
     <div class="brand">PolloRP</div>
-    <div class="hint">WASD move · Drag mouse: camera · E interact · Esc close</div>
+    <div class="hint">WASD move · Right-drag: camera · E interact · G fly (admin) · Esc close</div>
     <div id="nearPrompt" class="near">Press E to interact</div>
     <div id="emote" class="emote"></div>
   </div>
@@ -20,7 +20,10 @@
       <p>A small village, a big story. Choose your name and begin your journey.</p>
       <label for="playerName">Your name</label>
       <input id="playerName" type="text" maxlength="18" placeholder="e.g. Mira" />
-      <button id="startBtn">Start game</button>
+      <label for="adminPass">Admin password (optional)</label>
+      <input id="adminPass" type="password" placeholder="Admin password" />
+      <p class="subtle">Fly mode requires admin name + password.</p>
+      <button id="startBtn">Play</button>
     </div>
   </div>
 
@@ -32,6 +35,6 @@
     </div>
   </div>
 
-  <script type="module" src="main.js"></script>
+  <script type="module" src="./src/main.js"></script>
 </body>
 </html>
