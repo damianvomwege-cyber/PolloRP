@@ -18,9 +18,11 @@
   let onStart = null;
   let onLogout = null;
   let adminUnlocked = false;
+  let pendingStart = false;
   const nameRequiredText = 'Enter a name to play.';
   const ADMIN_NAME = 'RpAdmin';
   const ADMIN_PASS = 'Admin@2024!';
+  const SESSION_KEY = 'polorp.session';
 
   const dialogs = {
     start: {
@@ -146,6 +148,10 @@
 
   function onStartGame(callback) {
     onStart = callback;
+    if (pendingStart) {
+      pendingStart = false;
+      onStart(playerName);
+    }
   }
 
   function onLogoutGame(callback) {
@@ -175,6 +181,14 @@
     nameInput.blur();
     adminPassInput.blur();
     logoutBtn.classList.remove('hidden');
+    try {
+      localStorage.setItem(
+        SESSION_KEY,
+        JSON.stringify({ name: playerName, adminUnlocked })
+      );
+    } catch (error) {
+      // Ignore storage errors.
+    }
     if (onStart) {
       onStart(playerName);
     }
@@ -203,6 +217,11 @@
     adminPassInput.value = '';
     updateStartState();
     logoutBtn.classList.add('hidden');
+    try {
+      localStorage.removeItem(SESSION_KEY);
+    } catch (error) {
+      // Ignore storage errors.
+    }
     if (onLogout) {
       onLogout();
     }
@@ -211,6 +230,27 @@
   nameInput.addEventListener('input', updateStartState);
   updateStartState();
   logoutBtn.classList.add('hidden');
+
+  try {
+    const stored = localStorage.getItem(SESSION_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed.name === 'string' && parsed.name.trim().length > 0) {
+        playerName = parsed.name.trim();
+        adminUnlocked = Boolean(parsed.adminUnlocked);
+        gameStarted = true;
+        startModal.classList.remove('show');
+        logoutBtn.classList.remove('hidden');
+        if (onStart) {
+          onStart(playerName);
+        } else {
+          pendingStart = true;
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore storage errors.
+  }
 
   return {
     openDialog,
