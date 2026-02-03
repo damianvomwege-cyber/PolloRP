@@ -19,6 +19,8 @@ export function setupUI() {
   const herbStat = document.getElementById('herbStat');
   const coinStat = document.getElementById('coinStat');
   const playerCount = document.getElementById('playerCount');
+  const questTitle = document.getElementById('questTitle');
+  const questDetail = document.getElementById('questDetail');
 
   let playerName = 'Traveler';
   let gameStarted = false;
@@ -61,6 +63,12 @@ export function setupUI() {
             { label: 'Maybe later.', next: null }
           ]
         },
+        progress: {
+          text: 'The road is still dim. You have lit {lit}/{goal} lanterns so far.',
+          options: [
+            { label: 'I will keep going.', next: null }
+          ]
+        },
         complete: {
           text: 'You brought back the light, {name}. The village honors you. Take these {coins} coins.',
           options: [
@@ -91,6 +99,12 @@ export function setupUI() {
             { label: 'Maybe later.', next: null }
           ]
         },
+        locked: {
+          text: 'Elda still needs you. Come back after the lanterns are burning.',
+          options: [
+            { label: 'Understood.', next: null }
+          ]
+        },
         progress: {
           text: 'You have {herbs}/{herbGoal} herbs. The stew needs more.',
           options: [
@@ -107,6 +121,42 @@ export function setupUI() {
           text: 'The marsh glows at dusk. You will find the herbs near the reeds.',
           options: [
             { label: 'On my way.', next: null }
+          ]
+        }
+      }
+    },
+    mara: {
+      name: 'Mara',
+      steps: {
+        start: {
+          text: 'Traveler, I need a sharp eye. Find the old marker on the ridge and read its runes.',
+          options: [
+            { label: 'I will scout it.', next: 'thanks' },
+            { label: 'Not now.', next: null }
+          ]
+        },
+        locked: {
+          text: 'Finish Jori’s request first. The village must eat.',
+          options: [
+            { label: 'I will return.', next: null }
+          ]
+        },
+        progress: {
+          text: 'Have you found the marker yet? It stands north of the village.',
+          options: [
+            { label: 'Not yet.', next: null }
+          ]
+        },
+        complete: {
+          text: 'You found it! These {coins} coins are yours.',
+          options: [
+            { label: 'Happy to help.', next: null }
+          ]
+        },
+        thanks: {
+          text: 'The marker is carved with blue runes. You cannot miss it at night.',
+          options: [
+            { label: 'I will find it.', next: null }
           ]
         }
       }
@@ -185,6 +235,14 @@ export function setupUI() {
 
   function setPlayerCount(count) {
     playerCount.textContent = `${count}`;
+  }
+
+  function setQuestStatus({ title, detail }) {
+    if (questTitle) questTitle.textContent = title ?? '';
+    if (questDetail) {
+      questDetail.textContent = detail ?? '';
+      questDetail.style.display = detail ? 'block' : 'none';
+    }
   }
 
   function isDialogOpen() {
@@ -387,6 +445,7 @@ export function setupUI() {
     setPrompt,
     updateStats,
     setPlayerCount,
+    setQuestStatus,
     isDialogOpen,
     isGameStarted,
     isFlyUnlocked,

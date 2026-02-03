@@ -39,5 +39,11 @@ export function initEngine(container) {
   fill.position.set(-10, 8, -6);
   scene.add(fill);
 
-  return { renderer, scene, camera, maxAnisotropy };
+  return {
+    renderer,
+    scene,
+    camera,
+    maxAnisotropy,
+    lights: { hemisphere, sun, fill }
+  };
 }

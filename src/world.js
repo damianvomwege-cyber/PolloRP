@@ -172,6 +172,16 @@ function createMaterials(maps) {
       emissive: 0xfff2b2,
       emissiveIntensity: 1.2,
       roughness: 0.2,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.0
+    }),
+    markerStone: new THREE.MeshStandardMaterial({ color: 0x6f7780, roughness: 0.9, metalness: 0.0 }),
+    markerRune: new THREE.MeshStandardMaterial({
+      color: 0x9cc6ff,
+      emissive: 0x4b6fff,
+      emissiveIntensity: 0.35,
+      roughness: 0.4,
       metalness: 0.0
     })
   };
@@ -190,6 +200,7 @@ export function createWorld({ scene, maxAnisotropy }) {
   let herbsCollected = 0;
   const fireflies = [];
   const campfires = [];
+  let marker = null;
   const chunks = new Map();
   const tempVector = new THREE.Vector3();
 
@@ -452,9 +463,27 @@ export function createWorld({ scene, maxAnisotropy }) {
     parent.add(group);
     addObstacle(x, z, 0.6, chunkKey);
 
-    const lantern = { group, glass, light, lit: false, chunkKey };
+    const lantern = { group, glass, light, lit: false, chunkKey, baseIntensity: 1.35 };
     lanterns.push(lantern);
     return lantern;
+  }
+
+  function createMarker(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const group = new THREE.Group();
+    const stone = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.8, 0.4), materials.markerStone);
+    stone.position.y = 0.9;
+    stone.castShadow = true;
+    stone.receiveShadow = true;
+    const rune = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 0.1), materials.markerRune);
+    rune.position.set(0, 1.0, 0.26);
+    rune.castShadow = false;
+    group.add(stone, rune);
+    group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    parent.add(group);
+    addObstacle(x, z, 0.8, options.chunkKey ?? null);
+    marker = { group, rune, inspected: false };
+    return marker;
   }
 
   function makeRng(cx, cz) {
@@ -594,7 +623,7 @@ export function createWorld({ scene, maxAnisotropy }) {
   function lightLantern(lantern) {
     if (lantern.lit) return { changed: false, complete: lanternsLit >= LANTERN_GOAL };
     lantern.lit = true;
-    lantern.light.intensity = 1.35;
+    lantern.light.intensity = lantern.baseIntensity;
     lantern.glass.material.emissive = new THREE.Color(0xffc580);
     lantern.glass.material.emissiveIntensity = 1.2;
     lanternsLit += 1;
@@ -608,6 +637,10 @@ export function createWorld({ scene, maxAnisotropy }) {
 
   function isLanternQuestComplete() {
     return lanternsLit >= LANTERN_GOAL;
+  }
+
+  function getLanternProgress() {
+    return lanternsLit;
   }
 
   function getNearbyHerb(playerPosition) {
@@ -646,13 +679,48 @@ export function createWorld({ scene, maxAnisotropy }) {
     return herbsCollected >= HERB_GOAL;
   }
 
-  function updateAmbient(delta, elapsed) {
+  function getNearbyMarker(playerPosition) {
+    if (!marker) return null;
+    marker.group.getWorldPosition(tempVector);
+    const dist = playerPosition.distanceTo(tempVector);
+    if (dist < 2.4) return marker;
+    return null;
+  }
+
+  function inspectMarker(target) {
+    if (!target || target.inspected) return { changed: false };
+    target.inspected = true;
+    if (target.rune && target.rune.material) {
+      target.rune.material.emissiveIntensity = 0.85;
+    }
+    return { changed: true };
+  }
+
+  function isMarkerInspected() {
+    return marker ? marker.inspected : false;
+  }
+
+  function updateAmbient(delta, elapsed, nightFactor = 0) {
     campfires.forEach((campfire) => {
       campfire.flicker += delta * 3;
       const flicker = 0.7 + Math.sin(campfire.flicker * 4) * 0.2 + Math.random() * 0.1;
-      campfire.light.intensity = 1.2 + flicker;
+      const nightBoost = 0.6 + nightFactor * 0.9;
+      campfire.light.intensity = (1.1 + flicker) * nightBoost;
       campfire.flame.scale.y = 0.9 + Math.sin(campfire.flicker * 5) * 0.15;
     });
+
+    lanterns.forEach((lantern) => {
+      if (!lantern.lit) return;
+      const glow = 0.6 + nightFactor * 0.8;
+      lantern.light.intensity = lantern.baseIntensity * glow;
+      if (lantern.glass.material) {
+        lantern.glass.material.emissiveIntensity = 0.5 + nightFactor * 0.9;
+      }
+    });
+
+    const fireflyGlow = 0.05 + nightFactor * 0.95;
+    materials.firefly.opacity = fireflyGlow;
+    materials.firefly.emissiveIntensity = 0.3 + nightFactor * 1.1;
 
     fireflies.forEach((fly) => {
       const offset = elapsed * fly.speed + fly.phase;
@@ -704,6 +772,7 @@ export function createWorld({ scene, maxAnisotropy }) {
   createHerb(11.3, -9.2);
   createHerb(8.6, -12.2);
   createHerb(10.1, -12.8);
+  createMarker(18, 14);
 
   createFireflies(1, -4);
 
@@ -719,9 +788,13 @@ export function createWorld({ scene, maxAnisotropy }) {
     getNearbyLantern,
     lightLantern,
     isLanternQuestComplete,
+    getLanternProgress,
     getNearbyHerb,
     collectHerb,
     getHerbProgress,
-    isHerbQuestComplete
+    isHerbQuestComplete,
+    getNearbyMarker,
+    inspectMarker,
+    isMarkerInspected
   };
 }

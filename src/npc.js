@@ -46,7 +46,14 @@ export function createNpcs(scene, addObstacle) {
     position: new THREE.Vector3(5.5, 0, 2.5)
   });
 
-  return [elda, jori];
+  const mara = buildNpc(scene, addObstacle, {
+    name: 'Mara',
+    bodyColor: 0x4f6b8a,
+    hatColor: 0x1f2b3a,
+    position: new THREE.Vector3(-4.5, 0, 4.5)
+  });
+
+  return [elda, jori, mara];
 }
 
 export function getNearestNpc(playerPosition, npcs, range = 2.8) {

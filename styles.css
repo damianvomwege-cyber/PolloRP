@@ -200,6 +200,11 @@ button:disabled {
   color: rgba(246, 241, 231, 0.85);
 }
 
+.panel-detail {
+  font-size: 12px;
+  color: rgba(246, 241, 231, 0.65);
+}
+
 .chat {
   position: absolute;
   left: 24px;
