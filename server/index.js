@@ -15,6 +15,11 @@ let nextId = 1;
 const clients = new Map();
 const players = new Map();
 
+setInterval(() => {
+  if (players.size === 0) return;
+  broadcast({ type: 'state', players: Array.from(players.values()) });
+}, 1000);
+
 function sanitizeName(name) {
   if (typeof name !== 'string') return 'Traveler';
   const trimmed = name.trim();

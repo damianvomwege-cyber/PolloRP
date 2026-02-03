@@ -86,6 +86,7 @@ export function createMultiplayer(scene, options = {}) {
 
     const remote = {
       id: player.id,
+      name: player.name || 'Traveler',
       group,
       body,
       nameTag,
@@ -156,6 +157,39 @@ export function createMultiplayer(scene, options = {}) {
     onChat({ name: message.name, text: message.text });
   }
 
+  function handleState(message) {
+    if (!Array.isArray(message.players)) return;
+    const seen = new Set();
+    message.players.forEach((player) => {
+      if (!player || !player.id || player.id === myId) return;
+      seen.add(player.id);
+      const remote = remotes.get(player.id) || createRemotePlayer(player);
+      if (!remote) return;
+      remote.targetPosition.set(player.x ?? 0, player.y ?? 0, player.z ?? 0);
+      remote.targetRotation = player.r ?? 0;
+      if (player.name && player.name !== remote.name) {
+        remote.name = player.name;
+        if (remote.nameTag) {
+          if (remote.nameTag.texture) remote.nameTag.texture.dispose();
+          if (remote.nameTag.material) remote.nameTag.material.dispose();
+          remote.group.remove(remote.nameTag.sprite);
+        }
+        const nameTag = createNameTag(player.name);
+        nameTag.sprite.position.y = 2.9;
+        remote.group.add(nameTag.sprite);
+        remote.nameTag = nameTag;
+      }
+    });
+
+    remotes.forEach((remote, id) => {
+      if (!seen.has(id)) {
+        removeRemotePlayer(id);
+      }
+    });
+
+    onPlayers(remotes.size + 1);
+  }
+
   function connect({ name, serverUrl }) {
     disconnect();
     if (!serverUrl) {
@@ -200,6 +234,9 @@ export function createMultiplayer(scene, options = {}) {
           break;
         case 'chat':
           handleChat(message);
+          break;
+        case 'state':
+          handleState(message);
           break;
         case 'server-full':
           onSystem('Server is full (10 players).');
@@ -263,7 +300,12 @@ export function createMultiplayer(scene, options = {}) {
 
   function updateRemotes(delta) {
     remotes.forEach((remote) => {
-      remote.group.position.lerp(remote.targetPosition, Math.min(1, delta * 6));
+      const distance = remote.group.position.distanceTo(remote.targetPosition);
+      if (distance > 6) {
+        remote.group.position.copy(remote.targetPosition);
+      } else {
+        remote.group.position.lerp(remote.targetPosition, Math.min(1, delta * 6));
+      }
       remote.group.rotation.y = lerpAngle(remote.group.rotation.y, remote.targetRotation, Math.min(1, delta * 8));
     });
   }
