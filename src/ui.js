@@ -1,9 +1,10 @@
-﻿export function setupUI() {
+﻿import { makeRandomName } from './config.js';
+
+export function setupUI() {
   const startModal = document.getElementById('start');
   const startBtn = document.getElementById('startBtn');
   const nameInput = document.getElementById('playerName');
   const adminPassInput = document.getElementById('adminPass');
-  const serverUrlInput = document.getElementById('serverUrl');
   const logoutBtn = document.getElementById('logoutBtn');
   const nearPrompt = document.getElementById('nearPrompt');
   const dialogModal = document.getElementById('dialog');
@@ -25,11 +26,9 @@
   let adminUnlocked = false;
   let pendingPayload = null;
   let isTyping = false;
-  const nameRequiredText = 'Enter a name to play.';
   const ADMIN_NAME = 'RpAdmin';
   const ADMIN_PASS = 'Admin@2024!';
   const SESSION_KEY = 'polorp.session';
-  const SERVER_KEY = 'polorp.server';
 
   const dialogs = {
     start: {
@@ -174,16 +173,6 @@
     onChatSend = callback;
   }
 
-  function updateStartState() {
-    const hasName = nameInput.value.trim().length > 0;
-    startBtn.disabled = !hasName;
-    if (!hasName) {
-      startBtn.title = nameRequiredText;
-    } else {
-      startBtn.title = '';
-    }
-  }
-
   function setChatEnabled(enabled) {
     if (enabled) {
       chat.classList.remove('hidden');
@@ -215,58 +204,11 @@
     chatMessages.innerHTML = '';
   }
 
-  function resolveServerUrl() {
-    let url = serverUrlInput.value.trim();
-    if (!url) {
-      try {
-        url = localStorage.getItem(SERVER_KEY) || '';
-      } catch (error) {
-        url = '';
-      }
-    }
-    if (!url && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-      url = 'ws://localhost:3001';
-    }
-    if (url) {
-      serverUrlInput.value = url;
-      try {
-        localStorage.setItem(SERVER_KEY, url);
-      } catch (error) {
-        // Ignore storage errors.
-      }
-    }
-    return url;
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const queryServer = params.get('ws');
-  if (queryServer) {
-    serverUrlInput.value = queryServer;
-    try {
-      localStorage.setItem(SERVER_KEY, queryServer);
-    } catch (error) {
-      // Ignore storage errors.
-    }
-  } else {
-    try {
-      const storedServer = localStorage.getItem(SERVER_KEY);
-      if (storedServer) {
-        serverUrlInput.value = storedServer;
-      }
-    } catch (error) {
-      // Ignore storage errors.
-    }
-  }
-
   startBtn.addEventListener('click', () => {
     const rawName = nameInput.value.trim();
-    if (rawName.length === 0) {
-      nameInput.focus();
-      return;
-    }
-    playerName = rawName;
+    playerName = rawName.length > 0 ? rawName : makeRandomName();
+    nameInput.value = playerName;
     adminUnlocked = playerName === ADMIN_NAME && adminPassInput.value === ADMIN_PASS;
-    const serverUrl = resolveServerUrl();
     gameStarted = true;
     startModal.classList.remove('show');
     nameInput.blur();
@@ -276,12 +218,12 @@
     try {
       localStorage.setItem(
         SESSION_KEY,
-        JSON.stringify({ name: playerName, adminUnlocked, serverUrl })
+        JSON.stringify({ name: playerName, adminUnlocked })
       );
     } catch (error) {
       // Ignore storage errors.
     }
-    const payload = { name: playerName, serverUrl, adminUnlocked };
+    const payload = { name: playerName, adminUnlocked };
     if (onStart) {
       onStart(payload);
     } else {
@@ -301,12 +243,6 @@
     }
   });
 
-  serverUrlInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      startBtn.click();
-    }
-  });
-
   logoutBtn.addEventListener('click', () => {
     gameStarted = false;
     dialogOpen = false;
@@ -316,7 +252,6 @@
     startModal.classList.add('show');
     nameInput.value = '';
     adminPassInput.value = '';
-    updateStartState();
     logoutBtn.classList.add('hidden');
     setChatEnabled(false);
     clearChat();
@@ -331,8 +266,7 @@
     }
   });
 
-  nameInput.addEventListener('input', updateStartState);
-  updateStartState();
+  startBtn.disabled = false;
   logoutBtn.classList.add('hidden');
   setChatEnabled(false);
 
@@ -372,16 +306,12 @@
       if (parsed && typeof parsed.name === 'string' && parsed.name.trim().length > 0) {
         playerName = parsed.name.trim();
         adminUnlocked = Boolean(parsed.adminUnlocked);
-        if (parsed.serverUrl) {
-          serverUrlInput.value = parsed.serverUrl;
-        }
         gameStarted = true;
         startModal.classList.remove('show');
         logoutBtn.classList.remove('hidden');
         setChatEnabled(true);
         const payload = {
           name: playerName,
-          serverUrl: parsed.serverUrl || resolveServerUrl(),
           adminUnlocked
         };
         if (onStart) {

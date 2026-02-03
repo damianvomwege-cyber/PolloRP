@@ -6,6 +6,7 @@ import { createNpc, isNearNpc } from './npc.js';
 import { setupUI } from './ui.js';
 import { createInput } from './input.js';
 import { createMultiplayer } from './multiplayer.js';
+import { SERVER_URL } from './config.js';
 
 const { renderer, scene, camera, maxAnisotropy } = initEngine(document.body);
 
@@ -74,8 +75,8 @@ let flyEnabled = false;
 
 world.updateChunks(player.position, true);
 
-ui.onStartGame(({ name, serverUrl }) => {
-  multiplayer.connect({ name, serverUrl });
+ui.onStartGame(({ name }) => {
+  multiplayer.connect({ name, serverUrl: SERVER_URL });
 });
 
 ui.onChatSendMessage((text) => {

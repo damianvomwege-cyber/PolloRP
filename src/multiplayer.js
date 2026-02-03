@@ -192,8 +192,8 @@ export function createMultiplayer(scene, options = {}) {
 
   function connect({ name, serverUrl }) {
     disconnect();
-    if (!serverUrl) {
-      onSystem('Offline mode. Add a server URL to play online.');
+    if (!serverUrl || serverUrl.includes('YOUR_SERVER_HOST')) {
+      onSystem('Server not configured. Please set SERVER_URL in src/config.js.');
       return;
     }
 
