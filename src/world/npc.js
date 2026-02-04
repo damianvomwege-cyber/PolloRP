@@ -1,4 +1,4 @@
-﻿import { THREE } from './three.js';
+import { THREE } from '../core/three.js';
 
 function buildNpc(scene, addObstacle, options) {
   const name = options.name ?? 'NPC';
@@ -68,3 +68,4 @@ export function getNearestNpc(playerPosition, npcs, range = 2.8) {
   });
   return nearest;
 }
+

@@ -1,4 +1,4 @@
-﻿import { THREE } from './three.js';
+import { THREE } from './three.js';
 
 export function initEngine(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -47,3 +47,4 @@ export function initEngine(container) {
     lights: { hemisphere, sun, fill }
   };
 }
+

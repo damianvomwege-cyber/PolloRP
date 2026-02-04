@@ -1,4 +1,4 @@
-import { THREE } from './three.js';
+import { THREE } from '../core/three.js';
 
 export function createDayNight({ scene, renderer, lights, cycleSeconds = 180 }) {
   const daySky = new THREE.Color(0x9bb7d1);
@@ -64,3 +64,4 @@ export function createDayNight({ scene, renderer, lights, cycleSeconds = 180 }) 
 
   return { update };
 }
+

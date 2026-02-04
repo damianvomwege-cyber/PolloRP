@@ -1,4 +1,4 @@
-﻿import { THREE } from './three.js';
+import { THREE } from '../core/three.js';
 
 export function createInput(domElement, options = {}) {
   const keys = new Set();
@@ -63,3 +63,4 @@ export function createInput(domElement, options = {}) {
     }
   };
 }
+

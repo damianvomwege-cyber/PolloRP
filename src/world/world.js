@@ -1,4 +1,4 @@
-﻿import { THREE } from './three.js';
+import { THREE } from '../core/three.js';
 
 const CHUNK_SIZE = 40;
 const CHUNK_RADIUS = 2;
@@ -798,3 +798,4 @@ export function createWorld({ scene, maxAnisotropy }) {
     isMarkerInspected
   };
 }
+

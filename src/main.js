@@ -1,14 +1,14 @@
-import { THREE } from './three.js';
-import { initEngine } from './engine.js';
-import { createWorld } from './world.js';
-import { createPlayer, updatePlayer } from './player.js';
-import { createNpcs, getNearestNpc } from './npc.js';
-import { setupUI } from './ui.js';
-import { createInput } from './input.js';
-import { createMultiplayer } from './multiplayer.js';
-import { createDayNight } from './daynight.js';
-import { createAudio } from './audio.js';
-import { SERVER_URL } from './config.js';
+import { THREE } from './core/three.js';
+import { initEngine } from './core/engine.js';
+import { createWorld } from './world/world.js';
+import { createPlayer, updatePlayer } from './world/player.js';
+import { createNpcs, getNearestNpc } from './world/npc.js';
+import { setupUI } from './ui/ui.js';
+import { createInput } from './systems/input.js';
+import { createMultiplayer } from './systems/multiplayer.js';
+import { createDayNight } from './systems/daynight.js';
+import { createAudio } from './systems/audio.js';
+import { SERVER_URL } from './core/config.js';
 
 const { renderer, scene, camera, maxAnisotropy, lights } = initEngine(document.body);
 const dayNight = createDayNight({ scene, renderer, lights });

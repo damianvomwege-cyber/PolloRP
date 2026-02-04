@@ -1,4 +1,4 @@
-﻿import { THREE } from './three.js';
+import { THREE } from '../core/three.js';
 
 const UPDATE_INTERVAL = 100;
 
@@ -357,3 +357,4 @@ export function createMultiplayer(scene, options = {}) {
     update
   };
 }
+

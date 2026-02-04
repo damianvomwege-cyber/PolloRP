@@ -1,4 +1,4 @@
-﻿import { THREE } from './three.js';
+import { THREE } from '../core/three.js';
 
 export const PLAYER_RADIUS = 0.6;
 
@@ -49,3 +49,4 @@ export function updatePlayer(player, delta, keys, cameraYaw, resolveCollisions, 
     player.position.y = 0;
   }
 }
+

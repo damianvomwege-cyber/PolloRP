@@ -1,4 +1,4 @@
-﻿import { makeRandomName } from './config.js';
+import { makeRandomName } from '../core/config.js';
 
 export function setupUI() {
   const startModal = document.getElementById('start');
@@ -136,7 +136,7 @@ export function setupUI() {
           ]
         },
         locked: {
-          text: 'Finish Jori’s request first. The village must eat.',
+          text: 'Finish Jori�s request first. The village must eat.',
           options: [
             { label: 'I will return.', next: null }
           ]
@@ -460,3 +460,4 @@ export function setupUI() {
     setChatEnabled
   };
 }
+
