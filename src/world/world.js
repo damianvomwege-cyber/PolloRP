@@ -5,6 +5,10 @@ const CHUNK_RADIUS = 2;
 const LANTERN_GOAL = 3;
 const HERB_GOAL = 5;
 const FIREFLY_COUNT = 14;
+const HOUSE_COLLIDER_RADIUS = 0.95;
+const HOUSE_DOOR_OFFSET = 2.05;
+const INTERIOR_ORIGIN_X = 6000;
+const INTERIOR_ORIGIN_Z = 6000;
 
 function makeCanvas(size, drawFn) {
   const canvas = document.createElement('canvas');
@@ -200,14 +204,138 @@ export function createWorld({ scene, maxAnisotropy }) {
   let herbsCollected = 0;
   const fireflies = [];
   const campfires = [];
+  const houses = [];
+  let houseId = 0;
   let marker = null;
   const chunks = new Map();
   const tempVector = new THREE.Vector3();
+  const tempDoor = new THREE.Vector3();
+
+  let inHouse = false;
+  const houseReturnPosition = new THREE.Vector3();
+  let interior = null;
 
   function addObstacle(x, z, radius, chunkKey = null) {
     const obstacle = { position: new THREE.Vector3(x, 0, z), radius, chunkKey };
     obstacles.push(obstacle);
     return obstacle;
+  }
+
+  function isClearInChunk(x, z, minDistance, chunkKey) {
+    const minDistSq = minDistance * minDistance;
+    for (let i = 0; i < obstacles.length; i += 1) {
+      const obstacle = obstacles[i];
+      if (obstacle.chunkKey !== chunkKey) continue;
+      const dx = x - obstacle.position.x;
+      const dz = z - obstacle.position.z;
+      if (dx * dx + dz * dz < minDistSq) return false;
+    }
+    return true;
+  }
+
+  function rotateOffsetY(x, z, rotation) {
+    const sin = Math.sin(rotation);
+    const cos = Math.cos(rotation);
+    return {
+      x: x * cos - z * sin,
+      z: x * sin + z * cos
+    };
+  }
+
+  function getHouseDoorWorldPosition(house, out) {
+    const offset = rotateOffsetY(0, HOUSE_DOOR_OFFSET, house.rotation ?? 0);
+    out.set(house.x + offset.x, 0, house.z + offset.z);
+    return out;
+  }
+
+  function ensureInterior() {
+    if (interior) return interior;
+
+    const group = new THREE.Group();
+    group.position.set(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z);
+
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), materials.path);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    group.add(floor);
+
+    const wallMat = materials.wall;
+    const wallH = 3.0;
+    const wallT = 0.25;
+    const half = 6;
+    const wallA = new THREE.Mesh(new THREE.BoxGeometry(12, wallH, wallT), wallMat);
+    wallA.position.set(0, wallH / 2, -half);
+    const wallB = wallA.clone();
+    wallB.position.set(0, wallH / 2, half);
+    const wallC = new THREE.Mesh(new THREE.BoxGeometry(wallT, wallH, 12), wallMat);
+    wallC.position.set(-half, wallH / 2, 0);
+    const wallD = wallC.clone();
+    wallD.position.set(half, wallH / 2, 0);
+    [wallA, wallB, wallC, wallD].forEach((w) => {
+      w.castShadow = true;
+      w.receiveShadow = true;
+      group.add(w);
+    });
+
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(8.6, 3.2, 4), materials.roof);
+    roof.position.y = 4.1;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    roof.receiveShadow = true;
+    group.add(roof);
+
+    const table = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.18, 1.2), materials.bench);
+    table.position.set(-1.2, 0.55, 0.6);
+    table.castShadow = true;
+    table.receiveShadow = true;
+    group.add(table);
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), materials.crate);
+    crate.position.set(2.2, 0.5, -1.5);
+    crate.castShadow = true;
+    crate.receiveShadow = true;
+    group.add(crate);
+
+    // Exit pad (near the "door" on the south wall)
+    const exitRuneMat = materials.markerRune.clone();
+    exitRuneMat.userData.disposable = true;
+    exitRuneMat.emissiveIntensity = 0.55;
+    const exitPad = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.08, 16), exitRuneMat);
+    exitPad.position.set(0, 0.04, half - 0.8);
+    exitPad.castShadow = false;
+    exitPad.receiveShadow = true;
+    group.add(exitPad);
+
+    const light = new THREE.PointLight(0xffe1b8, 1.8, 18, 2);
+    light.position.set(0, 3.1, 0);
+    light.castShadow = true;
+    light.shadow.mapSize.set(512, 512);
+    group.add(light);
+
+    group.visible = false;
+    scene.add(group);
+
+    // Keep the player inside the room using radial obstacles placed outside the walls.
+    // The radii/offsets are chosen so the exit pad remains reachable.
+    const wallDistance = 7.2;
+    const wallRadius = 1.2;
+    const steps = [-4, 0, 4];
+    steps.forEach((s) => {
+      addObstacle(INTERIOR_ORIGIN_X + s, INTERIOR_ORIGIN_Z - wallDistance, wallRadius, null);
+      addObstacle(INTERIOR_ORIGIN_X + s, INTERIOR_ORIGIN_Z + wallDistance, wallRadius, null);
+      addObstacle(INTERIOR_ORIGIN_X - wallDistance, INTERIOR_ORIGIN_Z + s, wallRadius, null);
+      addObstacle(INTERIOR_ORIGIN_X + wallDistance, INTERIOR_ORIGIN_Z + s, wallRadius, null);
+    });
+    addObstacle(INTERIOR_ORIGIN_X - wallDistance, INTERIOR_ORIGIN_Z - wallDistance, wallRadius, null);
+    addObstacle(INTERIOR_ORIGIN_X + wallDistance, INTERIOR_ORIGIN_Z - wallDistance, wallRadius, null);
+    addObstacle(INTERIOR_ORIGIN_X - wallDistance, INTERIOR_ORIGIN_Z + wallDistance, wallRadius, null);
+    addObstacle(INTERIOR_ORIGIN_X + wallDistance, INTERIOR_ORIGIN_Z + wallDistance, wallRadius, null);
+
+    interior = {
+      group,
+      spawn: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z + half - 2.2),
+      exit: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z + half - 0.8)
+    };
+    return interior;
   }
 
   function resolveCollisions(position, radius) {
@@ -241,8 +369,35 @@ export function createWorld({ scene, maxAnisotropy }) {
     roof.receiveShadow = true;
     group.add(base, roof);
     group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    group.rotation.y = options.rotation ?? 0;
     parent.add(group);
-    addObstacle(x, z, 2.6, chunkKey);
+
+    // Approximate a rectangular collision footprint with multiple circular colliders,
+    // leaving the "front" (+Z) center open so the player can stand at the door.
+    const rot = group.rotation.y;
+    const colliders = [
+      { x: -1.65, z: -1.35 },
+      { x: 1.65, z: -1.35 },
+      { x: -1.65, z: 1.35 },
+      { x: 1.65, z: 1.35 },
+      { x: 0.0, z: -1.35 },
+      { x: -1.65, z: 0.0 },
+      { x: 1.65, z: 0.0 }
+    ];
+    colliders.forEach((p) => {
+      const off = rotateOffsetY(p.x, p.z, rot);
+      addObstacle(x + off.x, z + off.z, HOUSE_COLLIDER_RADIUS, chunkKey);
+    });
+
+    const doorStep = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.55), materials.bench);
+    doorStep.position.set(0, 0.06, 1.9);
+    doorStep.castShadow = true;
+    doorStep.receiveShadow = true;
+    group.add(doorStep);
+
+    const house = { id: houseId++, group, x, z, rotation: group.rotation.y, chunkKey };
+    houses.push(house);
+    return house;
   }
 
   function createTree(x, z, options = {}) {
@@ -525,6 +680,18 @@ export function createWorld({ scene, maxAnisotropy }) {
         createHerb(x + (rand() - 0.5) * 2, z + (rand() - 0.5) * 2, { parent, chunkKey });
       }
     }
+
+    // Sprinkle a few houses in the wilderness so "new spots" aren't empty.
+    if (rand() < 0.16) {
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const x = cx * CHUNK_SIZE + margin + rand() * (CHUNK_SIZE - margin * 2);
+        const z = cz * CHUNK_SIZE + margin + rand() * (CHUNK_SIZE - margin * 2);
+        if (!isClearInChunk(x, z, 6.5, chunkKey)) continue;
+        const rotation = Math.round(rand() * 3) * (Math.PI / 2);
+        createHouse(x, z, { parent, chunkKey, rotation });
+        break;
+      }
+    }
   }
 
   function createChunk(cx, cz) {
@@ -578,6 +745,7 @@ export function createWorld({ scene, maxAnisotropy }) {
     removeByChunk(obstacles, chunkKey);
     removeByChunk(lanterns, chunkKey);
     removeByChunk(herbs, chunkKey);
+    removeByChunk(houses, chunkKey);
     chunks.delete(chunkKey);
   }
 
@@ -795,7 +963,45 @@ export function createWorld({ scene, maxAnisotropy }) {
     isHerbQuestComplete,
     getNearbyMarker,
     inspectMarker,
-    isMarkerInspected
+    isMarkerInspected,
+    isInsideHouse: () => inHouse,
+    getNearbyHouseDoor: (playerPosition) => {
+      if (inHouse) return null;
+      let nearest = null;
+      let nearestDist = Infinity;
+      houses.forEach((house) => {
+        getHouseDoorWorldPosition(house, tempDoor);
+        const dist = playerPosition.distanceTo(tempDoor);
+        if (dist < 1.65 && dist < nearestDist) {
+          nearest = house;
+          nearestDist = dist;
+        }
+      });
+      return nearest;
+    },
+    enterHouse: (house, playerPosition) => {
+      if (!house || inHouse) return { changed: false };
+      const near = getHouseDoorWorldPosition(house, tempDoor);
+      if (playerPosition.distanceTo(near) > 1.9) return { changed: false };
+
+      const inside = ensureInterior();
+      houseReturnPosition.copy(playerPosition);
+      inHouse = true;
+      inside.group.visible = true;
+      return { changed: true, teleport: inside.spawn.clone() };
+    },
+    getNearbyHouseExit: (playerPosition) => {
+      if (!inHouse) return false;
+      const inside = ensureInterior();
+      return playerPosition.distanceTo(inside.exit) < 1.7;
+    },
+    exitHouse: () => {
+      if (!inHouse) return { changed: false };
+      const inside = ensureInterior();
+      inHouse = false;
+      inside.group.visible = false;
+      return { changed: true, teleport: houseReturnPosition.clone() };
+    }
   };
 }
 

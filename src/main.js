@@ -74,6 +74,18 @@ const input = createInput(renderer.domElement, {
     }
 
     if (key === 'e' && !ui.isDialogOpen()) {
+      if (world.isInsideHouse()) {
+        if (world.getNearbyHouseExit(player.position)) {
+          const result = world.exitHouse();
+          if (result.changed && result.teleport) {
+            player.position.set(result.teleport.x, 0, result.teleport.z);
+            ui.showEmote('You step back outside.');
+            audio.play('door');
+          }
+        }
+        return;
+      }
+
       const nearestNpc = getNearestNpc(player.position, npcs);
       if (nearestNpc) {
         if (activeQuest && QUESTS[activeQuest].npc !== nearestNpc.name) {
@@ -131,6 +143,17 @@ const input = createInput(renderer.domElement, {
           } else {
             ui.showEmote(`Lantern lit (${result.lit}/${result.goal}).`);
           }
+        }
+        return;
+      }
+
+      const house = world.getNearbyHouseDoor(player.position);
+      if (house) {
+        const result = world.enterHouse(house, player.position);
+        if (result.changed && result.teleport) {
+          player.position.set(result.teleport.x, 0, result.teleport.z);
+          ui.showEmote('You enter the house.');
+          audio.play('door');
         }
         return;
       }
@@ -390,7 +413,9 @@ function animate() {
     updatePlayer(player, delta, input.keys, yaw, world.resolveCollisions, { flyEnabled });
   }
 
-  world.updateChunks(player.position);
+  if (!world.isInsideHouse()) {
+    world.updateChunks(player.position);
+  }
   const dayState = dayNight.update(clock.elapsedTime);
   world.updateAmbient(delta, clock.elapsedTime, dayState.night);
   updateCamera(yaw, pitch);
@@ -406,10 +431,21 @@ function animate() {
   if (!ui.isGameStarted() || ui.isDialogOpen()) {
     ui.setPrompt('');
   } else {
+    if (world.isInsideHouse()) {
+      if (world.getNearbyHouseExit(player.position)) {
+        ui.setPrompt('Press E to exit the house');
+      } else {
+        ui.setPrompt('');
+      }
+      renderer.render(scene, camera);
+      return;
+    }
+
     const nearestNpc = getNearestNpc(player.position, npcs);
     const nearbyHerb = world.getNearbyHerb(player.position);
     const nearbyLantern = world.getNearbyLantern(player.position);
     const nearbyMarker = world.getNearbyMarker(player.position);
+    const nearbyHouse = world.getNearbyHouseDoor(player.position);
 
     if (nearestNpc) {
       if (activeQuest && QUESTS[activeQuest].npc !== nearestNpc.name) {
@@ -423,6 +459,8 @@ function animate() {
       ui.setPrompt('Press E to gather herbs');
     } else if (nearbyLantern && !nearbyLantern.lit) {
       ui.setPrompt('Press E to light the lantern');
+    } else if (nearbyHouse) {
+      ui.setPrompt('Press E to enter the house');
     } else {
       ui.setPrompt('');
     }

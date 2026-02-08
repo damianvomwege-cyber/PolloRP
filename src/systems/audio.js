@@ -86,6 +86,10 @@ export function createAudio() {
       case 'herb':
         playTone({ freq: 660, duration: 0.18, type: 'triangle', gain: 0.04, rampTo: 520 });
         break;
+      case 'door':
+        playTone({ freq: 220, duration: 0.16, type: 'triangle', gain: 0.04, rampTo: 180 });
+        playTone({ freq: 330, duration: 0.12, type: 'sine', gain: 0.03, rampTo: 260 });
+        break;
       case 'marker':
         playTone({ freq: 260, duration: 0.28, type: 'sine', gain: 0.045, rampTo: 200 });
         break;
