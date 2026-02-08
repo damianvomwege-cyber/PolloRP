@@ -62,8 +62,36 @@ const QUEST_ORDER = ['lanterns', 'herbs', 'scout'];
 let activeQuest = null;
 const completedQuests = new Set();
 
+const MIN_ORBIT_DISTANCE = 3.4;
+const MAX_ORBIT_DISTANCE = 14.5;
+const HOUSE_MIN_ORBIT_DISTANCE = 2.6;
+const HOUSE_MAX_ORBIT_DISTANCE = 6.0;
+const HOUSE_MAX_PITCH = 0.62;
+let orbitDistance = 7.2;
+
 const input = createInput(renderer.domElement, {
   shouldCaptureKey: () => ui.isGameStarted() && !ui.isChatTyping(),
+  shouldCaptureWheel: (event) => {
+    if (!ui.isGameStarted()) return false;
+    if (ui.isChatTyping()) return false;
+    if (ui.isDialogOpen()) return false;
+    const target = event?.target;
+    if (target && typeof target.closest === 'function') {
+      // Let the chat scroll normally when hovering it.
+      if (target.closest('#chat')) return false;
+      // Don't zoom while interacting with inputs/buttons (safety for future UI).
+      if (target.closest('input, textarea, select, button')) return false;
+    }
+    return true;
+  },
+  onZoom: (deltaY) => {
+    // deltaY is typically "pixels" on most browsers (trackpad/smooth scroll),
+    // but can be larger on mouse wheels.
+    const zoomSpeed = 0.01;
+    const min = world.isInsideHouse() ? HOUSE_MIN_ORBIT_DISTANCE : MIN_ORBIT_DISTANCE;
+    const max = world.isInsideHouse() ? HOUSE_MAX_ORBIT_DISTANCE : MAX_ORBIT_DISTANCE;
+    orbitDistance = THREE.MathUtils.clamp(orbitDistance + deltaY * zoomSpeed, min, max);
+  },
   onActionKey: (key) => {
     if (!ui.isGameStarted()) return;
     if (ui.isChatTyping()) return;
@@ -81,6 +109,7 @@ const input = createInput(renderer.domElement, {
             player.position.set(result.teleport.x, 0, result.teleport.z);
             ui.showEmote('You step back outside.');
             audio.play('door');
+            orbitDistance = THREE.MathUtils.clamp(orbitDistance, MIN_ORBIT_DISTANCE, MAX_ORBIT_DISTANCE);
           }
         }
         return;
@@ -154,6 +183,7 @@ const input = createInput(renderer.domElement, {
           player.position.set(result.teleport.x, 0, result.teleport.z);
           ui.showEmote('You enter the house.');
           audio.play('door');
+          orbitDistance = THREE.MathUtils.clamp(orbitDistance, HOUSE_MIN_ORBIT_DISTANCE, HOUSE_MAX_ORBIT_DISTANCE);
         }
         return;
       }
@@ -175,7 +205,6 @@ const input = createInput(renderer.domElement, {
   }
 });
 
-const orbitDistance = 7.2;
 const orbitHeight = 1.2;
 const clock = new THREE.Clock();
 let flyEnabled = false;
@@ -400,6 +429,10 @@ function updateCamera(yaw, pitch) {
     Math.cos(yaw) * orbitDistance * cosPitch
   );
   const desired = player.position.clone().add(offset);
+  if (world.isInsideHouse()) {
+    world.clampCameraPosition(desired);
+    world.clampCameraPosition(camera.position);
+  }
   camera.position.lerp(desired, 0.08);
   camera.lookAt(player.position.x, player.position.y + 1.2, player.position.z);
 }
@@ -408,6 +441,9 @@ function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
   const { yaw, pitch } = input.getCameraAngles();
+  const effectivePitch = world.isInsideHouse()
+    ? THREE.MathUtils.clamp(pitch, 0.1, HOUSE_MAX_PITCH)
+    : pitch;
 
   if (ui.isGameStarted() && !ui.isDialogOpen() && !ui.isChatTyping()) {
     updatePlayer(player, delta, input.keys, yaw, world.resolveCollisions, { flyEnabled });
@@ -418,7 +454,7 @@ function animate() {
   }
   const dayState = dayNight.update(clock.elapsedTime);
   world.updateAmbient(delta, clock.elapsedTime, dayState.night);
-  updateCamera(yaw, pitch);
+  updateCamera(yaw, effectivePitch);
   if (ui.isGameStarted()) {
     multiplayer.update(delta, player);
   }

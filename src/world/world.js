@@ -9,6 +9,10 @@ const HOUSE_COLLIDER_RADIUS = 0.95;
 const HOUSE_DOOR_OFFSET = 2.05;
 const INTERIOR_ORIGIN_X = 6000;
 const INTERIOR_ORIGIN_Z = 6000;
+const INTERIOR_HALF_SIZE = 6;
+const INTERIOR_CAMERA_MARGIN = 0.9;
+const INTERIOR_CAMERA_MIN_Y = 0.7;
+const INTERIOR_CAMERA_MAX_Y = 3.8;
 
 function makeCanvas(size, drawFn) {
   const canvas = document.createElement('canvas');
@@ -259,10 +263,14 @@ export function createWorld({ scene, maxAnisotropy }) {
     floor.receiveShadow = true;
     group.add(floor);
 
-    const wallMat = materials.wall;
+    // Interior uses double-sided materials so walls/roof are visible from inside.
+    const wallMat = materials.wall.clone();
+    wallMat.userData.disposable = true;
+    wallMat.side = THREE.DoubleSide;
+    wallMat.shadowSide = THREE.DoubleSide;
     const wallH = 3.0;
     const wallT = 0.25;
-    const half = 6;
+    const half = INTERIOR_HALF_SIZE;
     const wallA = new THREE.Mesh(new THREE.BoxGeometry(12, wallH, wallT), wallMat);
     wallA.position.set(0, wallH / 2, -half);
     const wallB = wallA.clone();
@@ -277,7 +285,11 @@ export function createWorld({ scene, maxAnisotropy }) {
       group.add(w);
     });
 
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(8.6, 3.2, 4), materials.roof);
+    const roofMat = materials.roof.clone();
+    roofMat.userData.disposable = true;
+    roofMat.side = THREE.DoubleSide;
+    roofMat.shadowSide = THREE.DoubleSide;
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(8.6, 3.2, 4), roofMat);
     roof.position.y = 4.1;
     roof.rotation.y = Math.PI / 4;
     roof.castShadow = true;
@@ -332,7 +344,7 @@ export function createWorld({ scene, maxAnisotropy }) {
 
     interior = {
       group,
-      spawn: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z + half - 2.2),
+      spawn: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z),
       exit: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z + half - 0.8)
     };
     return interior;
@@ -1001,6 +1013,18 @@ export function createWorld({ scene, maxAnisotropy }) {
       inHouse = false;
       inside.group.visible = false;
       return { changed: true, teleport: houseReturnPosition.clone() };
+    },
+    clampCameraPosition: (position) => {
+      if (!inHouse) return position;
+      const half = INTERIOR_HALF_SIZE;
+      const minX = INTERIOR_ORIGIN_X - half + INTERIOR_CAMERA_MARGIN;
+      const maxX = INTERIOR_ORIGIN_X + half - INTERIOR_CAMERA_MARGIN;
+      const minZ = INTERIOR_ORIGIN_Z - half + INTERIOR_CAMERA_MARGIN;
+      const maxZ = INTERIOR_ORIGIN_Z + half - INTERIOR_CAMERA_MARGIN;
+      position.x = THREE.MathUtils.clamp(position.x, minX, maxX);
+      position.z = THREE.MathUtils.clamp(position.z, minZ, maxZ);
+      position.y = THREE.MathUtils.clamp(position.y, INTERIOR_CAMERA_MIN_Y, INTERIOR_CAMERA_MAX_Y);
+      return position;
     }
   };
 }

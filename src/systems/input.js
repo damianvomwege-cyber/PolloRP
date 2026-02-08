@@ -15,6 +15,22 @@ export function createInput(domElement, options = {}) {
     event.preventDefault();
   });
 
+  // Wheel events can be captured by overlay UI; listen on window so zoom works reliably.
+  window.addEventListener(
+    'wheel',
+    (event) => {
+      if (options.shouldCaptureWheel && !options.shouldCaptureWheel(event)) {
+        return;
+      }
+      if (options.onZoom) {
+        // Prevent page scrolling while zooming the camera.
+        event.preventDefault();
+        options.onZoom(event.deltaY, event);
+      }
+    },
+    { passive: false }
+  );
+
   domElement.addEventListener('mousedown', (event) => {
     if (event.button !== 2) return;
     isDragging = true;
