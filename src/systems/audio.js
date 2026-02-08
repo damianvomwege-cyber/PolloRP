@@ -90,6 +90,12 @@ export function createAudio() {
         playTone({ freq: 220, duration: 0.16, type: 'triangle', gain: 0.04, rampTo: 180 });
         playTone({ freq: 330, duration: 0.12, type: 'sine', gain: 0.03, rampTo: 260 });
         break;
+      case 'loot':
+        playTone({ freq: 520, duration: 0.14, type: 'triangle', gain: 0.04, rampTo: 740 });
+        break;
+      case 'sleep':
+        playTone({ freq: 220, duration: 0.22, type: 'sine', gain: 0.035, rampTo: 440 });
+        break;
       case 'marker':
         playTone({ freq: 260, duration: 0.28, type: 'sine', gain: 0.045, rampTo: 200 });
         break;

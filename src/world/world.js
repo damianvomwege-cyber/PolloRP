@@ -258,6 +258,13 @@ export function createWorld({ scene, maxAnisotropy }) {
     const group = new THREE.Group();
     group.position.set(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z);
 
+    // Dark shell so the player never sees the sky/background through gaps.
+    const shellMat = new THREE.MeshBasicMaterial({ color: 0x05060a, side: THREE.BackSide });
+    shellMat.userData.disposable = true;
+    const shell = new THREE.Mesh(new THREE.BoxGeometry(42, 26, 42), shellMat);
+    shell.position.y = 12;
+    group.add(shell);
+
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), materials.path);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
@@ -307,6 +314,12 @@ export function createWorld({ scene, maxAnisotropy }) {
     crate.receiveShadow = true;
     group.add(crate);
 
+    const bed = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.32, 1.35), materials.bench);
+    bed.position.set(-2.6, 0.16, -2.2);
+    bed.castShadow = true;
+    bed.receiveShadow = true;
+    group.add(bed);
+
     // Exit pad (near the "door" on the south wall)
     const exitRuneMat = materials.markerRune.clone();
     exitRuneMat.userData.disposable = true;
@@ -345,7 +358,12 @@ export function createWorld({ scene, maxAnisotropy }) {
     interior = {
       group,
       spawn: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z),
-      exit: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z + half - 0.8)
+      exit: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z + half - 0.8),
+      interactables: [
+        { id: 'chest', mesh: crate, range: 1.6 },
+        { id: 'bed', mesh: bed, range: 1.9 }
+      ],
+      chestLooted: false
     };
     return interior;
   }
@@ -400,6 +418,9 @@ export function createWorld({ scene, maxAnisotropy }) {
       const off = rotateOffsetY(p.x, p.z, rot);
       addObstacle(x + off.x, z + off.z, HOUSE_COLLIDER_RADIUS, chunkKey);
     });
+
+    // Prevent walking into the hollow decorative mesh (entry is via E interaction).
+    addObstacle(x, z, 1.35, chunkKey);
 
     const doorStep = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 0.55), materials.bench);
     doorStep.position.set(0, 0.06, 1.9);
@@ -1013,6 +1034,37 @@ export function createWorld({ scene, maxAnisotropy }) {
       inHouse = false;
       inside.group.visible = false;
       return { changed: true, teleport: houseReturnPosition.clone() };
+    },
+    getNearbyInteriorInteractable: (playerPosition) => {
+      if (!inHouse) return null;
+      const inside = ensureInterior();
+      if (!inside.interactables) return null;
+      let nearest = null;
+      let nearestDist = Infinity;
+      inside.interactables.forEach((item) => {
+        item.mesh.getWorldPosition(tempVector);
+        const dist = playerPosition.distanceTo(tempVector);
+        if (dist < item.range && dist < nearestDist) {
+          nearest = item.id;
+          nearestDist = dist;
+        }
+      });
+      return nearest;
+    },
+    interactInterior: (id) => {
+      if (!inHouse) return { changed: false };
+      const inside = ensureInterior();
+      if (id === 'chest') {
+        if (inside.chestLooted) {
+          return { changed: false, message: 'The chest is empty.' };
+        }
+        inside.chestLooted = true;
+        return { changed: true, coinsDelta: 2, message: 'You found 2 coins.', sound: 'loot' };
+      }
+      if (id === 'bed') {
+        return { changed: true, sleepToDay: true, message: 'You rest for a while.', sound: 'sleep' };
+      }
+      return { changed: false };
     },
     clampCameraPosition: (position) => {
       if (!inHouse) return position;

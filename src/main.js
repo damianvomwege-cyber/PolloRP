@@ -11,7 +11,8 @@ import { createAudio } from './systems/audio.js';
 import { SERVER_URL } from './core/config.js';
 
 const { renderer, scene, camera, maxAnisotropy, lights } = initEngine(document.body);
-const dayNight = createDayNight({ scene, renderer, lights });
+const DAY_NIGHT_CYCLE_SECONDS = 180;
+const dayNight = createDayNight({ scene, renderer, lights, cycleSeconds: DAY_NIGHT_CYCLE_SECONDS });
 const audio = createAudio();
 
 const ui = setupUI();
@@ -110,6 +111,25 @@ const input = createInput(renderer.domElement, {
             ui.showEmote('You step back outside.');
             audio.play('door');
             orbitDistance = THREE.MathUtils.clamp(orbitDistance, MIN_ORBIT_DISTANCE, MAX_ORBIT_DISTANCE);
+          }
+          return;
+        }
+
+        const target = world.getNearbyInteriorInteractable(player.position);
+        if (target) {
+          const result = world.interactInterior(target);
+          if (result?.coinsDelta) {
+            coins += result.coinsDelta;
+            ui.updateStats({ coins });
+          }
+          if (result?.sleepToDay) {
+            sleepToMorning();
+          }
+          if (result?.sound) {
+            audio.play(result.sound);
+          }
+          if (result?.message) {
+            ui.showEmote(result.message);
           }
         }
         return;
@@ -210,6 +230,17 @@ const clock = new THREE.Clock();
 let flyEnabled = false;
 let coins = 0;
 let lastPlayerPosition = player.position.clone();
+let timeOffset = 0;
+const HOUSE_BG = new THREE.Color(0x05060a);
+
+function sleepToMorning() {
+  const elapsed = clock.elapsedTime + timeOffset;
+  const t = ((elapsed % DAY_NIGHT_CYCLE_SECONDS) / DAY_NIGHT_CYCLE_SECONDS) * Math.PI * 2;
+  const target = Math.PI / 2; // midday-ish
+  let delta = target - t;
+  while (delta < 0) delta += Math.PI * 2;
+  timeOffset += (delta / (Math.PI * 2)) * DAY_NIGHT_CYCLE_SECONDS;
+}
 
 function getQuestGoal(id) {
   const quest = QUESTS[id];
@@ -452,8 +483,13 @@ function animate() {
   if (!world.isInsideHouse()) {
     world.updateChunks(player.position);
   }
-  const dayState = dayNight.update(clock.elapsedTime);
-  world.updateAmbient(delta, clock.elapsedTime, dayState.night);
+  const elapsed = clock.elapsedTime + timeOffset;
+  const dayState = dayNight.update(elapsed);
+  if (world.isInsideHouse()) {
+    scene.background = HOUSE_BG;
+    if (scene.fog) scene.fog.color.copy(HOUSE_BG);
+  }
+  world.updateAmbient(delta, elapsed, dayState.night);
   updateCamera(yaw, effectivePitch);
   if (ui.isGameStarted()) {
     multiplayer.update(delta, player);
@@ -471,7 +507,14 @@ function animate() {
       if (world.getNearbyHouseExit(player.position)) {
         ui.setPrompt('Press E to exit the house');
       } else {
-        ui.setPrompt('');
+        const target = world.getNearbyInteriorInteractable(player.position);
+        if (target === 'chest') {
+          ui.setPrompt('Press E to open the chest');
+        } else if (target === 'bed') {
+          ui.setPrompt('Press E to rest');
+        } else {
+          ui.setPrompt('');
+        }
       }
       renderer.render(scene, camera);
       return;
