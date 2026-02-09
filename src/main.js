@@ -271,6 +271,60 @@ const input = createInput(renderer.domElement, {
         return;
       }
 
+      // World interactables checked before NPCs so nearby NPCs
+      // don't block lantern/herb/mushroom collection.
+      const lantern = world.getNearbyLantern(player.position);
+      if (lantern && !lantern.lit) {
+        const result = world.lightLantern(lantern);
+        if (result.changed) {
+          ui.updateStats({ lanterns: result.lit, lanternGoal: result.goal });
+          audio.play('lantern');
+          updateQuestUI();
+          if (result.complete) {
+            ui.showEmote('All lanterns are burning again! Return to Elda.');
+          } else {
+            ui.showEmote(`Lantern lit (${result.lit}/${result.goal}).`);
+          }
+        }
+        return;
+      }
+
+      const herb = world.getNearbyHerb(player.position);
+      if (herb) {
+        const result = world.collectHerb(herb);
+        if (result.changed) {
+          gameState.addItem({ id: 'herb', name: 'Herb' });
+          ui.updateStats({ herbs: result.count, herbGoal: result.goal });
+          ui.showEmote(`Herb collected (${result.count}/${result.goal}).`);
+          audio.play('herb');
+          updateQuestUI();
+        }
+        return;
+      }
+
+      const mushroom = world.getNearbyMushroom?.(player.position);
+      if (mushroom) {
+        const result = world.collectMushroom(mushroom);
+        if (result.changed) {
+          gameState.addItem({ id: 'mushroom', name: 'Mushroom' });
+          ui.showEmote(`Mushroom collected (${result.count}/${result.goal}).`);
+          audio.play('herb');
+          updateQuestUI();
+        }
+        return;
+      }
+
+      const marker = world.getNearbyMarker(player.position);
+      if (marker) {
+        const result = world.inspectMarker(marker);
+        if (result.changed) {
+          ui.showEmote('You study the glowing runes.');
+          audio.play('marker');
+          updateQuestUI();
+        }
+        return;
+      }
+
       const nearestNpc = getNearestNpc(player.position, npcs);
       if (nearestNpc) {
         if (nearestNpc.isShop) {
@@ -291,58 +345,6 @@ const input = createInput(renderer.domElement, {
         if (nearestNpc.name === 'Jori') { handleJori(); return; }
         if (nearestNpc.name === 'Mara') { handleMara(); return; }
         if (nearestNpc.name === 'Gareth') { handleGareth(); return; }
-      }
-
-      const marker = world.getNearbyMarker(player.position);
-      if (marker) {
-        const result = world.inspectMarker(marker);
-        if (result.changed) {
-          ui.showEmote('You study the glowing runes.');
-          audio.play('marker');
-          updateQuestUI();
-        }
-        return;
-      }
-
-      const herb = world.getNearbyHerb(player.position);
-      if (herb) {
-        const result = world.collectHerb(herb);
-        if (result.changed) {
-          gameState.addItem({ id: 'herb', name: 'Herb' });
-          ui.updateStats({ herbs: result.count, herbGoal: result.goal });
-          ui.showEmote(`Herb collected (${result.count}/${result.goal}).`);
-          audio.play('herb');
-          updateQuestUI();
-        }
-        return;
-      }
-
-      const lantern = world.getNearbyLantern(player.position);
-      if (lantern && !lantern.lit) {
-        const result = world.lightLantern(lantern);
-        if (result.changed) {
-          ui.updateStats({ lanterns: result.lit, lanternGoal: result.goal });
-          audio.play('lantern');
-          updateQuestUI();
-          if (result.complete) {
-            ui.showEmote('All lanterns are burning again! Return to Elda.');
-          } else {
-            ui.showEmote(`Lantern lit (${result.lit}/${result.goal}).`);
-          }
-        }
-        return;
-      }
-
-      const mushroom = world.getNearbyMushroom?.(player.position);
-      if (mushroom) {
-        const result = world.collectMushroom(mushroom);
-        if (result.changed) {
-          gameState.addItem({ id: 'mushroom', name: 'Mushroom' });
-          ui.showEmote(`Mushroom collected (${result.count}/${result.goal}).`);
-          audio.play('herb');
-          updateQuestUI();
-        }
-        return;
       }
 
       const house = world.getNearbyHouseDoor(player.position);
@@ -974,7 +976,13 @@ function animate() {
     const nearbyHouse = world.getNearbyHouseDoor(player.position);
     const nearbyMushroom = world.getNearbyMushroom?.(player.position);
 
-    if (nearestNpc) {
+    if (nearbyLantern && !nearbyLantern.lit) {
+      ui.setPrompt('Press E to light the lantern');
+    } else if (nearbyHerb) {
+      ui.setPrompt('Press E to gather herbs');
+    } else if (nearbyMushroom) {
+      ui.setPrompt('Press E to pick the mushroom');
+    } else if (nearestNpc) {
       if (nearestNpc.isShop) {
         ui.setPrompt(`Press E to trade with ${nearestNpc.name}`);
       } else if (activeQuest && QUESTS[activeQuest].npc !== nearestNpc.name && !isQuestComplete(activeQuest)) {
@@ -984,12 +992,6 @@ function animate() {
       }
     } else if (activeQuest === 'scout' && nearbyMarker && !world.isMarkerInspected()) {
       ui.setPrompt('Press E to inspect the marker');
-    } else if (nearbyMushroom) {
-      ui.setPrompt('Press E to pick the mushroom');
-    } else if (nearbyHerb) {
-      ui.setPrompt('Press E to gather herbs');
-    } else if (nearbyLantern && !nearbyLantern.lit) {
-      ui.setPrompt('Press E to light the lantern');
     } else if (nearbyHouse) {
       ui.setPrompt('Press E to enter the house');
     } else {

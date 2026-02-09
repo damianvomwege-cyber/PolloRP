@@ -919,7 +919,7 @@ export function createWorld({ scene, maxAnisotropy }) {
     lanterns.forEach((lantern) => {
       lantern.group.getWorldPosition(tempVector);
       const dist = playerPosition.distanceTo(tempVector);
-      if (dist < 2.4 && dist < nearestDist) {
+      if (dist < 3.2 && dist < nearestDist) {
         nearest = lantern;
         nearestDist = dist;
       }
