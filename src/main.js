@@ -14,13 +14,20 @@ import { createWeather } from './systems/weather.js';
 import { createParticleSystem } from './systems/particles.js';
 import { SERVER_URL } from './core/config.js';
 
-const { renderer, scene, camera, maxAnisotropy, lights } = initEngine(document.body);
-const DAY_NIGHT_CYCLE_SECONDS = 180;
-const dayNight = createDayNight({ scene, renderer, lights, cycleSeconds: DAY_NIGHT_CYCLE_SECONDS });
+const ui = setupUI();
 const audio = createAudio();
 const gameState = createGameState();
 
-const ui = setupUI();
+let renderer, scene, camera, maxAnisotropy, lights;
+try {
+  ({ renderer, scene, camera, maxAnisotropy, lights } = initEngine(document.body));
+} catch (err) {
+  ui.showEmote('Failed to start 3D engine. Try reloading.');
+  throw err;
+}
+
+const DAY_NIGHT_CYCLE_SECONDS = 180;
+const dayNight = createDayNight({ scene, renderer, lights, cycleSeconds: DAY_NIGHT_CYCLE_SECONDS });
 const world = createWorld({ scene, maxAnisotropy });
 const player = createPlayer(scene);
 const npcs = createNpcs(scene, world.addObstacle);
