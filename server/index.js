@@ -14,10 +14,28 @@ const wss = new WebSocket.Server({ server });
 let nextId = 1;
 const clients = new Map();
 const players = new Map();
+const adminClients = new Set();
+const bannedNames = new Set();
+const ADMIN_NAME = 'Damian vom Wege';
+const ADMIN_PASS = 'Admin@2024!';
+
+function broadcastToAdmins(data) {
+  const payload = JSON.stringify(data);
+  adminClients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(payload);
+    }
+  });
+}
 
 setInterval(() => {
-  if (players.size === 0) return;
-  broadcast({ type: 'state', players: Array.from(players.values()) });
+  const playerList = Array.from(players.values());
+  if (playerList.length > 0) {
+    broadcast({ type: 'state', players: playerList });
+  }
+  if (adminClients.size > 0) {
+    broadcastToAdmins({ type: 'admin-update', players: playerList });
+  }
 }, 1000);
 
 function sanitizeName(name) {
@@ -61,13 +79,21 @@ wss.on('connection', (ws) => {
       }
       if (player) return;
 
+      const name = sanitizeName(message.name);
+      if (bannedNames.has(name.toLowerCase())) {
+        ws.send(JSON.stringify({ type: 'banned' }));
+        ws.close();
+        return;
+      }
+
       player = {
         id: String(nextId++),
-        name: sanitizeName(message.name),
+        name,
         x: 0,
         y: 0,
         z: 0,
-        r: 0
+        r: 0,
+        level: 1
       };
       clients.set(ws, player);
       players.set(player.id, player);
@@ -81,6 +107,64 @@ wss.on('connection', (ws) => {
       );
 
       broadcast({ type: 'player-joined', player }, ws);
+      broadcastToAdmins({ type: 'admin-player-joined', player });
+      return;
+    }
+
+    if (message.type === 'admin-join') {
+      if (message.name === ADMIN_NAME && message.password === ADMIN_PASS) {
+        adminClients.add(ws);
+        ws.send(JSON.stringify({
+          type: 'admin-welcome',
+          players: Array.from(players.values()),
+          bans: Array.from(bannedNames)
+        }));
+      } else {
+        ws.send(JSON.stringify({ type: 'admin-denied' }));
+      }
+      return;
+    }
+
+    if (message.type === 'admin-kick' && adminClients.has(ws)) {
+      const targetId = message.id;
+      let kicked = false;
+      clients.forEach((p, clientWs) => {
+        if (p.id === targetId) {
+          clientWs.send(JSON.stringify({ type: 'kicked' }));
+          clientWs.close();
+          kicked = true;
+        }
+      });
+      ws.send(JSON.stringify({ type: 'admin-kick-result', success: kicked, id: targetId }));
+      return;
+    }
+
+    if (message.type === 'admin-ban' && adminClients.has(ws)) {
+      const banName = String(message.name || '').trim().toLowerCase();
+      if (banName) {
+        bannedNames.add(banName);
+        // Kick any connected player with that name
+        clients.forEach((p, clientWs) => {
+          if (p.name.toLowerCase() === banName) {
+            clientWs.send(JSON.stringify({ type: 'kicked' }));
+            clientWs.close();
+          }
+        });
+        broadcastToAdmins({
+          type: 'admin-ban-update',
+          bans: Array.from(bannedNames)
+        });
+      }
+      return;
+    }
+
+    if (message.type === 'admin-unban' && adminClients.has(ws)) {
+      const unbanName = String(message.name || '').trim().toLowerCase();
+      bannedNames.delete(unbanName);
+      broadcastToAdmins({
+        type: 'admin-ban-update',
+        bans: Array.from(bannedNames)
+      });
       return;
     }
 
@@ -91,10 +175,12 @@ wss.on('connection', (ws) => {
       const y = Number(message.y);
       const z = Number(message.z);
       const r = Number(message.r);
+      const level = Number(message.level);
       if (Number.isFinite(x)) player.x = x;
       if (Number.isFinite(y)) player.y = y;
       if (Number.isFinite(z)) player.z = z;
       if (Number.isFinite(r)) player.r = r;
+      if (Number.isFinite(level) && level >= 1) player.level = level;
 
       broadcast(
         {
@@ -103,7 +189,8 @@ wss.on('connection', (ws) => {
           x: player.x,
           y: player.y,
           z: player.z,
-          r: player.r
+          r: player.r,
+          level: player.level ?? 1
         },
         ws
       );
@@ -118,10 +205,12 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    adminClients.delete(ws);
     if (!player) return;
     clients.delete(ws);
     players.delete(player.id);
     broadcast({ type: 'player-left', id: player.id });
+    broadcastToAdmins({ type: 'admin-player-left', id: player.id, name: player.name });
     player = null;
   });
 });

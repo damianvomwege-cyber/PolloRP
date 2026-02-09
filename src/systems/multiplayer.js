@@ -91,6 +91,7 @@ export function createMultiplayer(scene, options = {}) {
     const remote = {
       id: player.id,
       name: player.name || 'Traveler',
+      level: player.level ?? 1,
       group,
       body,
       nameTag,
@@ -154,6 +155,7 @@ export function createMultiplayer(scene, options = {}) {
     }
     remote.targetPosition.set(message.x ?? 0, message.y ?? 0, message.z ?? 0);
     remote.targetRotation = message.r ?? 0;
+    if (message.level != null) remote.level = message.level;
   }
 
   function handleChat(message) {
@@ -171,6 +173,7 @@ export function createMultiplayer(scene, options = {}) {
       if (!remote) return;
       remote.targetPosition.set(player.x ?? 0, player.y ?? 0, player.z ?? 0);
       remote.targetRotation = player.r ?? 0;
+      if (player.level != null) remote.level = player.level;
       if (player.name && player.name !== remote.name) {
         remote.name = player.name;
         if (remote.nameTag) {
@@ -194,11 +197,20 @@ export function createMultiplayer(scene, options = {}) {
     onPlayers(remotes.size + 1);
   }
 
+  const MAX_RECONNECT_ATTEMPTS = 5;
+
   function scheduleReconnect() {
     if (!shouldReconnect || !lastConnect) return;
     if (reconnectTimer) return;
-    const delay = Math.min(8000, 1000 * Math.pow(2, reconnectAttempts));
-    onSystem(`Reconnecting in ${Math.round(delay / 1000)}s...`);
+    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      onSystem('Server unreachable. Reload to retry.');
+      shouldReconnect = false;
+      return;
+    }
+    const delay = Math.min(15000, 2000 * Math.pow(2, reconnectAttempts));
+    if (reconnectAttempts === 0) {
+      onSystem('Connection lost. Reconnecting...');
+    }
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       reconnectAttempts += 1;
@@ -227,9 +239,12 @@ export function createMultiplayer(scene, options = {}) {
       return;
     }
 
-    onSystem(`Connecting to ${serverUrl}...`);
+    if (!options.isReconnect) {
+      onSystem(`Connecting to ${serverUrl}...`);
+    }
 
     socket.addEventListener('open', () => {
+      reconnectAttempts = 0;
       socket.send(JSON.stringify({ type: 'join', name }));
     });
 
@@ -271,7 +286,10 @@ export function createMultiplayer(scene, options = {}) {
     });
 
     socket.addEventListener('close', () => {
-      onSystem('Disconnected from server.');
+      const wasConnected = myId !== null;
+      if (wasConnected) {
+        onSystem('Disconnected from server.');
+      }
       myId = null;
       clearRemotes();
       onPlayers(1);
@@ -281,10 +299,7 @@ export function createMultiplayer(scene, options = {}) {
     });
 
     socket.addEventListener('error', () => {
-      onSystem('Connection error.');
-      if (shouldReconnect) {
-        scheduleReconnect();
-      }
+      // Suppress error message during reconnects - the close handler will fire next
     });
   }
 
@@ -308,6 +323,8 @@ export function createMultiplayer(scene, options = {}) {
     socket.send(JSON.stringify({ type: 'chat', text }));
   }
 
+  let currentLevel = 1;
+
   function sendMove(player) {
     if (!socket || socket.readyState !== WebSocket.OPEN || !myId) return;
     const now = performance.now();
@@ -328,9 +345,22 @@ export function createMultiplayer(scene, options = {}) {
         x: pos.x,
         y: pos.y,
         z: pos.z,
-        r: rot
+        r: rot,
+        level: currentLevel
       })
     );
+  }
+
+  function setLevel(level) {
+    currentLevel = level;
+  }
+
+  function getLeaderboard() {
+    const list = [];
+    remotes.forEach((remote) => {
+      list.push({ name: remote.name, level: remote.level ?? 1 });
+    });
+    return list;
   }
 
   function updateRemotes(delta) {
@@ -354,7 +384,9 @@ export function createMultiplayer(scene, options = {}) {
     connect,
     disconnect,
     sendChat,
-    update
+    update,
+    setLevel,
+    getLeaderboard
   };
 }
 

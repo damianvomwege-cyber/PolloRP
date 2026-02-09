@@ -4,9 +4,13 @@ const CHUNK_SIZE = 40;
 const CHUNK_RADIUS = 2;
 const LANTERN_GOAL = 3;
 const HERB_GOAL = 5;
+const MUSHROOM_GOAL = 4;
 const FIREFLY_COUNT = 14;
 const HOUSE_COLLIDER_RADIUS = 0.95;
 const HOUSE_DOOR_OFFSET = 2.05;
+const ANIMAL_WANDER_SPEED = 0.6;
+const ANIMAL_DIR_CHANGE_TIME = 3.0;
+const RUINS_POSITION = { x: 30, z: -25 };
 const INTERIOR_ORIGIN_X = 6000;
 const INTERIOR_ORIGIN_Z = 6000;
 const INTERIOR_HALF_SIZE = 6;
@@ -191,7 +195,11 @@ function createMaterials(maps) {
       emissiveIntensity: 0.35,
       roughness: 0.4,
       metalness: 0.0
-    })
+    }),
+    mushroom: new THREE.MeshStandardMaterial({ color: 0xb04040, roughness: 0.7, metalness: 0.0 }),
+    mushroomStem: new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.8, metalness: 0.0 }),
+    chickenBody: new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.8, metalness: 0.0 }),
+    sheepBody: new THREE.MeshStandardMaterial({ color: 0xf0ece4, roughness: 0.9, metalness: 0.0 })
   };
 }
 
@@ -206,11 +214,15 @@ export function createWorld({ scene, maxAnisotropy }) {
   let lanternsLit = 0;
   const herbs = [];
   let herbsCollected = 0;
+  const mushrooms = [];
+  let mushroomsCollected = 0;
   const fireflies = [];
   const campfires = [];
   const houses = [];
   let houseId = 0;
   let marker = null;
+  const animals = [];
+  let ruinsFound = false;
   const chunks = new Map();
   const tempVector = new THREE.Vector3();
   const tempDoor = new THREE.Vector3();
@@ -218,6 +230,9 @@ export function createWorld({ scene, maxAnisotropy }) {
   let inHouse = false;
   const houseReturnPosition = new THREE.Vector3();
   let interior = null;
+  const houseChestState = new Map();
+  let currentHouseId = null;
+  const CHEST_RESPAWN_MS = 5 * 60 * 1000;
 
   function addObstacle(x, z, radius, chunkKey = null) {
     const obstacle = { position: new THREE.Vector3(x, 0, z), radius, chunkKey };
@@ -360,8 +375,8 @@ export function createWorld({ scene, maxAnisotropy }) {
       spawn: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z),
       exit: new THREE.Vector3(INTERIOR_ORIGIN_X, 0, INTERIOR_ORIGIN_Z + half - 0.8),
       interactables: [
-        { id: 'chest', mesh: crate, range: 1.6 },
-        { id: 'bed', mesh: bed, range: 1.9 }
+        { id: 'chest', mesh: crate, range: 2.8 },
+        { id: 'bed', mesh: bed, range: 2.8 }
       ],
       chestLooted: false
     };
@@ -428,7 +443,11 @@ export function createWorld({ scene, maxAnisotropy }) {
     doorStep.receiveShadow = true;
     group.add(doorStep);
 
-    const house = { id: houseId++, group, x, z, rotation: group.rotation.y, chunkKey };
+    // Chimney position (top-back of the roof)
+    const chimneyLocal = rotateOffsetY(1.4, -1.0, group.rotation.y);
+    const chimneyPosition = new THREE.Vector3(x + chimneyLocal.x, 5.0, z + chimneyLocal.z);
+
+    const house = { id: houseId++, group, x, z, rotation: group.rotation.y, chunkKey, chimneyPosition };
     houses.push(house);
     return house;
   }
@@ -656,6 +675,92 @@ export function createWorld({ scene, maxAnisotropy }) {
     return lantern;
   }
 
+  function createMushroom(x, z, options = {}) {
+    const parent = options.parent ?? scene;
+    const group = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.2, 8), materials.mushroomStem);
+    stem.position.y = 0.1;
+    stem.castShadow = true;
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), materials.mushroom);
+    cap.position.y = 0.2;
+    cap.castShadow = true;
+    group.add(stem, cap);
+    group.position.set(x - parent.position.x, 0, z - parent.position.z);
+    parent.add(group);
+    const mushroom = { group, collected: false, chunkKey: options.chunkKey ?? null };
+    mushrooms.push(mushroom);
+    return mushroom;
+  }
+
+  function createChicken(x, z) {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), materials.chickenBody);
+    body.position.y = 0.25;
+    body.scale.set(1, 0.8, 1.2);
+    body.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), materials.chickenBody);
+    head.position.set(0, 0.4, 0.18);
+    head.castShadow = true;
+    group.add(body, head);
+    group.position.set(x, 0, z);
+    scene.add(group);
+    animals.push({
+      type: 'chicken',
+      group,
+      wanderDir: new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize(),
+      wanderTimer: Math.random() * ANIMAL_DIR_CHANGE_TIME,
+      homeX: x,
+      homeZ: z
+    });
+  }
+
+  function createSheep(x, z) {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), materials.sheepBody);
+    body.position.y = 0.4;
+    body.scale.set(1, 0.8, 1.3);
+    body.castShadow = true;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), materials.sheepBody);
+    head.position.set(0, 0.5, 0.35);
+    head.castShadow = true;
+    group.add(body, head);
+    group.position.set(x, 0, z);
+    scene.add(group);
+    animals.push({
+      type: 'sheep',
+      group,
+      wanderDir: new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize(),
+      wanderTimer: Math.random() * ANIMAL_DIR_CHANGE_TIME,
+      homeX: x,
+      homeZ: z
+    });
+  }
+
+  function createRuins(x, z) {
+    const group = new THREE.Group();
+    // Broken columns
+    for (let i = 0; i < 4; i++) {
+      const height = 1.5 + Math.random() * 1.5;
+      const col = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.25, 0.3, height, 8),
+        materials.markerStone
+      );
+      const angle = (i / 4) * Math.PI * 2;
+      col.position.set(Math.cos(angle) * 3, height / 2, Math.sin(angle) * 3);
+      col.castShadow = true;
+      col.receiveShadow = true;
+      group.add(col);
+    }
+    // Central rune stone
+    const rune = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.4, 0.3), materials.markerRune);
+    rune.position.y = 0.7;
+    rune.castShadow = true;
+    group.add(rune);
+    group.position.set(x, 0, z);
+    scene.add(group);
+    addObstacle(x, z, 1.5);
+  }
+
   function createMarker(x, z, options = {}) {
     const parent = options.parent ?? scene;
     const group = new THREE.Group();
@@ -778,6 +883,7 @@ export function createWorld({ scene, maxAnisotropy }) {
     removeByChunk(obstacles, chunkKey);
     removeByChunk(lanterns, chunkKey);
     removeByChunk(herbs, chunkKey);
+    removeByChunk(mushrooms, chunkKey);
     removeByChunk(houses, chunkKey);
     chunks.delete(chunkKey);
   }
@@ -977,6 +1083,25 @@ export function createWorld({ scene, maxAnisotropy }) {
 
   createFireflies(1, -4);
 
+  // Mushrooms scattered around the village outskirts
+  createMushroom(-14, -10);
+  createMushroom(-16, -8);
+  createMushroom(16, 12);
+  createMushroom(18, 10);
+  createMushroom(-10, 14);
+  createMushroom(12, -14);
+
+  // Animals around the village
+  createChicken(-7, -5);
+  createChicken(-9, -7);
+  createChicken(9, 9);
+  createSheep(14, 8);
+  createSheep(16, 10);
+  createSheep(-14, 6);
+
+  // Ruins (for explore_ruins quest)
+  createRuins(RUINS_POSITION.x, RUINS_POSITION.z);
+
   return {
     obstacles,
     lanterns,
@@ -997,6 +1122,64 @@ export function createWorld({ scene, maxAnisotropy }) {
     getNearbyMarker,
     inspectMarker,
     isMarkerInspected,
+    mushroomGoal: MUSHROOM_GOAL,
+    getHouses: () => houses,
+    getNearbyMushroom: (playerPosition) => {
+      let nearest = null;
+      let nearestDist = Infinity;
+      mushrooms.forEach((m) => {
+        if (m.collected) return;
+        m.group.getWorldPosition(tempVector);
+        const dist = playerPosition.distanceTo(tempVector);
+        if (dist < 2.2 && dist < nearestDist) {
+          nearest = m;
+          nearestDist = dist;
+        }
+      });
+      return nearest;
+    },
+    collectMushroom: (mushroom) => {
+      if (!mushroom || mushroom.collected) return { changed: false };
+      mushroom.collected = true;
+      mushroom.group.visible = false;
+      mushroomsCollected += 1;
+      return {
+        changed: true,
+        count: mushroomsCollected,
+        goal: MUSHROOM_GOAL,
+        complete: mushroomsCollected >= MUSHROOM_GOAL
+      };
+    },
+    getMushroomProgress: () => mushroomsCollected,
+    isRuinsFound: () => ruinsFound,
+    checkRuinsProximity: (playerPosition) => {
+      if (ruinsFound) return;
+      const dx = playerPosition.x - RUINS_POSITION.x;
+      const dz = playerPosition.z - RUINS_POSITION.z;
+      if (dx * dx + dz * dz < 25) {
+        ruinsFound = true;
+      }
+    },
+    updateAnimals: (delta) => {
+      for (const animal of animals) {
+        animal.wanderTimer -= delta;
+        if (animal.wanderTimer <= 0) {
+          animal.wanderTimer = ANIMAL_DIR_CHANGE_TIME + Math.random() * 2;
+          animal.wanderDir.set(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+        }
+        const pos = animal.group.position;
+        pos.x += animal.wanderDir.x * ANIMAL_WANDER_SPEED * delta;
+        pos.z += animal.wanderDir.z * ANIMAL_WANDER_SPEED * delta;
+        // Keep animals near home
+        const dx = pos.x - animal.homeX;
+        const dz = pos.z - animal.homeZ;
+        if (dx * dx + dz * dz > 36) {
+          animal.wanderDir.set(animal.homeX - pos.x, 0, animal.homeZ - pos.z).normalize();
+          animal.wanderTimer = 1;
+        }
+        animal.group.rotation.y = Math.atan2(animal.wanderDir.x, animal.wanderDir.z);
+      }
+    },
     isInsideHouse: () => inHouse,
     getNearbyHouseDoor: (playerPosition) => {
       if (inHouse) return null;
@@ -1018,6 +1201,14 @@ export function createWorld({ scene, maxAnisotropy }) {
       if (playerPosition.distanceTo(near) > 1.9) return { changed: false };
 
       const inside = ensureInterior();
+      currentHouseId = house.id;
+      const state = houseChestState.get(currentHouseId);
+      if (state && state.looted) {
+        const elapsed = Date.now() - state.lootedAt;
+        inside.chestLooted = elapsed < CHEST_RESPAWN_MS;
+      } else {
+        inside.chestLooted = false;
+      }
       houseReturnPosition.copy(playerPosition);
       inHouse = true;
       inside.group.visible = true;
@@ -1059,12 +1250,34 @@ export function createWorld({ scene, maxAnisotropy }) {
           return { changed: false, message: 'The chest is empty.' };
         }
         inside.chestLooted = true;
-        return { changed: true, coinsDelta: 2, message: 'You found 2 coins.', sound: 'loot' };
+        houseChestState.set(currentHouseId, { looted: true, lootedAt: Date.now() });
+
+        const coins = 3 + Math.floor(Math.random() * 6);
+        const items = [];
+        const parts = [`${coins} coins`];
+        if (Math.random() < 0.4) {
+          items.push({ id: 'herb', name: 'Herb' });
+          parts.push('an herb');
+        }
+        if (Math.random() < 0.3) {
+          items.push({ id: 'mushroom', name: 'Mushroom' });
+          parts.push('a mushroom');
+        }
+        if (Math.random() < 0.1) {
+          items.push({ id: 'health_potion', name: 'Health Potion' });
+          parts.push('a health potion');
+        }
+        const message = `You found ${parts.join(', ')}.`;
+        return { changed: true, coinsDelta: coins, items, message, sound: 'loot' };
       }
       if (id === 'bed') {
         return { changed: true, sleepToDay: true, message: 'You rest for a while.', sound: 'sleep' };
       }
       return { changed: false };
+    },
+    resetChestStates: () => {
+      houseChestState.clear();
+      if (interior) interior.chestLooted = false;
     },
     clampCameraPosition: (position) => {
       if (!inHouse) return position;

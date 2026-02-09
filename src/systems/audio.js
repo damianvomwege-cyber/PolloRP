@@ -105,15 +105,45 @@ export function createAudio() {
       case 'deny':
         playTone({ freq: 180, duration: 0.18, type: 'sawtooth', gain: 0.04, rampTo: 120 });
         break;
+      case 'playerAttack':
+        playTone({ freq: 280, duration: 0.12, type: 'sawtooth', gain: 0.06, rampTo: 380 });
+        break;
+      case 'enemyHit':
+        playTone({ freq: 200, duration: 0.1, type: 'square', gain: 0.04, rampTo: 150 });
+        break;
+      case 'enemyDeath':
+        playTone({ freq: 340, duration: 0.25, type: 'sawtooth', gain: 0.05, rampTo: 100 });
+        playTone({ freq: 240, duration: 0.3, type: 'triangle', gain: 0.03, rampTo: 80 });
+        break;
+      case 'death':
+        playTone({ freq: 160, duration: 0.4, type: 'sawtooth', gain: 0.06, rampTo: 60 });
+        playTone({ freq: 120, duration: 0.5, type: 'sine', gain: 0.04, rampTo: 40 });
+        break;
+      case 'levelUp':
+        playTone({ freq: 392, duration: 0.15, type: 'triangle', gain: 0.06 });
+        setTimeout(() => playTone({ freq: 523, duration: 0.15, type: 'triangle', gain: 0.06 }), 120);
+        setTimeout(() => playTone({ freq: 659, duration: 0.2, type: 'triangle', gain: 0.07 }), 240);
+        setTimeout(() => playTone({ freq: 784, duration: 0.35, type: 'triangle', gain: 0.08 }), 380);
+        break;
+      case 'purchase':
+        playTone({ freq: 440, duration: 0.12, type: 'triangle', gain: 0.04, rampTo: 660 });
+        playTone({ freq: 550, duration: 0.14, type: 'sine', gain: 0.03, rampTo: 700 });
+        break;
       default:
         break;
     }
   }
 
-  function update({ night = 0, moving = false, speed = 0 }) {
+  let lastBirdAt = 0;
+  let lastCricketAt = 0;
+
+  function update({ night = 0, moving = false, speed = 0, weather = 'clear' }) {
     if (!ctx || !ambientGain || !windFilter) return;
     const now = ctx.currentTime;
-    const windTarget = 0.01 + night * 0.03;
+
+    // Wind ambient - louder during rain
+    const weatherBoost = weather === 'rain' ? 0.04 : 0;
+    const windTarget = 0.01 + night * 0.03 + weatherBoost;
     ambientGain.gain.setTargetAtTime(windTarget, now, 0.4);
     const drift = Math.sin(now * 0.15) * 80;
     windFilter.frequency.setTargetAtTime(320 + night * 220 + drift, now, 0.6);
@@ -124,6 +154,20 @@ export function createAudio() {
         lastStepAt = now;
         playStep();
       }
+    }
+
+    // Ambient birds during the day
+    if (night < 0.3 && now - lastBirdAt > 4 + Math.random() * 6) {
+      lastBirdAt = now;
+      const freq = 1200 + Math.random() * 800;
+      playTone({ freq, duration: 0.08 + Math.random() * 0.1, type: 'sine', gain: 0.015, rampTo: freq * (0.7 + Math.random() * 0.6) });
+    }
+
+    // Ambient crickets at night
+    if (night > 0.5 && now - lastCricketAt > 1.5 + Math.random() * 3) {
+      lastCricketAt = now;
+      playTone({ freq: 4200, duration: 0.06, type: 'sine', gain: 0.008 });
+      playTone({ freq: 4400, duration: 0.06, type: 'sine', gain: 0.006 });
     }
   }
 

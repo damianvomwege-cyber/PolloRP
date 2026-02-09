@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PolloRP Admin</title>
+  <link rel="icon" href="/assets/favicon.png" type="image/png" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Petrona:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0e1016;
+      --panel: rgba(16, 18, 24, 0.86);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --text: #f6f1e7;
+      --accent: #e2b35d;
+      --accent-soft: rgba(226, 179, 93, 0.2);
+      --danger: #d44;
+      --danger-soft: rgba(221, 68, 68, 0.2);
+      --success: #4a8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    .login-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .login-card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 40px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+    }
+
+    .login-card h1 {
+      font-family: 'Petrona', serif;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-size: 1.6rem;
+    }
+
+    .login-card p {
+      color: rgba(246, 241, 231, 0.5);
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+      text-align: left;
+      font-size: 0.8rem;
+      color: rgba(246, 241, 231, 0.6);
+      margin-bottom: 4px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      margin-bottom: 14px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      padding: 10px 20px;
+      transition: background 0.15s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #1a1208;
+      font-weight: 600;
+      width: 100%;
+    }
+
+    .btn-primary:hover { background: #c9982e; }
+
+    .btn-danger {
+      background: var(--danger-soft);
+      color: var(--danger);
+      padding: 6px 14px;
+      font-size: 0.8rem;
+    }
+
+    .btn-danger:hover { background: rgba(221, 68, 68, 0.35); }
+
+    .btn-small {
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 6px 14px;
+      font-size: 0.8rem;
+    }
+
+    .btn-small:hover { background: rgba(226, 179, 93, 0.35); }
+
+    .error-msg {
+      color: var(--danger);
+      font-size: 0.85rem;
+      margin-top: 10px;
+    }
+
+    /* Dashboard */
+    .dashboard { display: none; }
+
+    .dashboard.active { display: block; }
+    .login-wrapper.hidden { display: none; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    .header h1 {
+      font-family: 'Petrona', serif;
+      color: var(--accent);
+      font-size: 1.3rem;
+    }
+
+    .status {
+      font-size: 0.8rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(68, 170, 136, 0.15);
+      color: var(--success);
+    }
+
+    .content {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .section h2 {
+      font-size: 1rem;
+      color: var(--accent);
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: left;
+      font-size: 0.75rem;
+      color: rgba(246, 241, 231, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--panel-border);
+    }
+
+    td {
+      padding: 10px;
+      font-size: 0.9rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .actions { display: flex; gap: 6px; }
+
+    .empty-state {
+      text-align: center;
+      padding: 20px;
+      color: rgba(246, 241, 231, 0.35);
+      font-size: 0.85rem;
+    }
+
+    .ban-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .ban-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--danger-soft);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
+
+    .ban-tag button {
+      background: none;
+      color: var(--danger);
+      padding: 0;
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .ban-form {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .ban-form input {
+      margin-bottom: 0;
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrapper" id="loginWrapper">
+    <div class="login-card">
+      <h1>PolloRP Admin</h1>
+      <p>Server management dashboard</p>
+      <label for="adminName">Name</label>
+      <input id="adminName" type="text" placeholder="Admin name" />
+      <label for="adminPass">Password</label>
+      <input id="adminPass" type="password" placeholder="Password" />
+      <button class="btn-primary" id="loginBtn">Log in</button>
+      <div class="error-msg" id="errorMsg"></div>
+    </div>
+  </div>
+
+  <div class="dashboard" id="dashboard">
+    <div class="header">
+      <h1>PolloRP Admin</h1>
+      <span class="status" id="statusBadge">Connected</span>
+    </div>
+    <div class="content">
+      <div class="section">
+        <h2>Connected Players (<span id="playerCountLabel">0</span>)</h2>
+        <table id="playerTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Level</th>
+              <th>Position</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="playerBody"></tbody>
+        </table>
+        <div class="empty-state" id="noPlayers">No players connected</div>
+      </div>
+
+      <div class="section">
+        <h2>Banned Players</h2>
+        <div class="ban-list" id="banList"></div>
+        <div class="empty-state" id="noBans">No bans</div>
+        <div class="ban-form">
+          <input id="banNameInput" type="text" placeholder="Player name to ban" />
+          <button class="btn-danger" id="banBtn">Ban</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const loginWrapper = document.getElementById('loginWrapper');
+    const dashboard = document.getElementById('dashboard');
+    const loginBtn = document.getElementById('loginBtn');
+    const errorMsg = document.getElementById('errorMsg');
+    const adminNameInput = document.getElementById('adminName');
+    const adminPassInput = document.getElementById('adminPass');
+    const playerBody = document.getElementById('playerBody');
+    const playerCountLabel = document.getElementById('playerCountLabel');
+    const noPlayers = document.getElementById('noPlayers');
+    const banList = document.getElementById('banList');
+    const noBans = document.getElementById('noBans');
+    const banNameInput = document.getElementById('banNameInput');
+    const banBtn = document.getElementById('banBtn');
+    const statusBadge = document.getElementById('statusBadge');
+
+    let ws = null;
+    let players = [];
+    let bans = [];
+
+    function getServerUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const override = params.get('ws');
+      if (override) return override;
+      const host = window.location.hostname;
+      if (host === 'localhost' || host === '127.0.0.1') {
+        return 'ws://localhost:3001';
+      }
+      return 'wss://pollorp.onrender.com';
+    }
+
+    function connect(name, password) {
+      errorMsg.textContent = '';
+      loginBtn.disabled = true;
+      loginBtn.textContent = 'Connecting...';
+      const url = getServerUrl();
+      ws = new WebSocket(url);
+
+      const timeout = setTimeout(() => {
+        if (ws && ws.readyState !== WebSocket.OPEN) {
+          ws.close();
+          ws = null;
+          errorMsg.textContent = 'Connection timed out. Server may be waking up — try again.';
+          loginBtn.disabled = false;
+          loginBtn.textContent = 'Log in';
+        }
+      }, 15000);
+
+      ws.addEventListener('open', () => {
+        clearTimeout(timeout);
+        loginBtn.textContent = 'Authenticating...';
+        ws.send(JSON.stringify({ type: 'admin-join', name, password }));
+      });
+
+      ws.addEventListener('message', (event) => {
+        let msg;
+        try { msg = JSON.parse(event.data); } catch { return; }
+
+        switch (msg.type) {
+          case 'admin-welcome':
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Log in';
+            loginWrapper.classList.add('hidden');
+            dashboard.classList.add('active');
+            players = msg.players || [];
+            bans = msg.bans || [];
+            renderPlayers();
+            renderBans();
+            break;
+          case 'admin-denied':
+            errorMsg.textContent = 'Invalid credentials.';
+            ws.close();
+            ws = null;
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Log in';
+            break;
+          case 'admin-update':
+            players = msg.players || [];
+            renderPlayers();
+            break;
+          case 'admin-player-joined':
+            if (msg.player && !players.find(p => p.id === msg.player.id)) {
+              players.push(msg.player);
+              renderPlayers();
+            }
+            break;
+          case 'admin-player-left':
+            players = players.filter(p => p.id !== msg.id);
+            renderPlayers();
+            break;
+          case 'admin-ban-update':
+            bans = msg.bans || [];
+            renderBans();
+            break;
+        }
+      });
+
+      ws.addEventListener('close', () => {
+        clearTimeout(timeout);
+        statusBadge.textContent = 'Disconnected';
+        statusBadge.style.background = 'rgba(221, 68, 68, 0.15)';
+        statusBadge.style.color = '#d44';
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Log in';
+      });
+
+      ws.addEventListener('error', () => {
+        clearTimeout(timeout);
+        errorMsg.textContent = 'Connection failed. Is the server running?';
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Log in';
+      });
+    }
+
+    function renderPlayers() {
+      playerCountLabel.textContent = players.length;
+      noPlayers.style.display = players.length === 0 ? 'block' : 'none';
+      playerBody.innerHTML = '';
+      players.forEach((p) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(p.name)}</td>
+          <td>${p.level || 1}</td>
+          <td>${Math.round(p.x || 0)}, ${Math.round(p.z || 0)}</td>
+          <td class="actions">
+            <button class="btn-danger" onclick="kickPlayer('${p.id}')">Kick</button>
+            <button class="btn-danger" onclick="banPlayer('${escapeHtml(p.name)}')">Ban</button>
+          </td>
+        `;
+        playerBody.appendChild(tr);
+      });
+    }
+
+    function renderBans() {
+      noBans.style.display = bans.length === 0 ? 'block' : 'none';
+      banList.innerHTML = '';
+      bans.forEach((name) => {
+        const tag = document.createElement('span');
+        tag.className = 'ban-tag';
+        tag.innerHTML = `${escapeHtml(name)} <button onclick="unbanPlayer('${escapeHtml(name)}')">&times;</button>`;
+        banList.appendChild(tag);
+      });
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    window.kickPlayer = function(id) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'admin-kick', id }));
+      }
+    };
+
+    window.banPlayer = function(name) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'admin-ban', name }));
+      }
+    };
+
+    window.unbanPlayer = function(name) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'admin-unban', name }));
+      }
+    };
+
+    loginBtn.addEventListener('click', () => {
+      const name = adminNameInput.value.trim();
+      const password = adminPassInput.value;
+      if (!name || !password) {
+        errorMsg.textContent = 'Please fill in both fields.';
+        return;
+      }
+      connect(name, password);
+    });
+
+    adminPassInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') loginBtn.click();
+    });
+
+    banBtn.addEventListener('click', () => {
+      const name = banNameInput.value.trim();
+      if (!name) return;
+      banPlayer(name);
+      banNameInput.value = '';
+    });
+
+    banNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') banBtn.click();
+    });
+  </script>
+</body>
+</html>
